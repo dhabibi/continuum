@@ -43,3 +43,13 @@ handoff, foreground priority, display-sized preview selection and less eager
 gallery loading, while preserving original image quality/download URLs. Daniel
 then explicitly asked to hold the next APK build while he adds more features.
 Keep this batch in source until he requests the combined build.
+
+The next requested app features are vertical post navigation and horizontal
+gallery navigation in Shadowbox (without vertical swipe-to-dismiss there), legacy
+link import into regular local subscriptions/Home, multiple local accounts with
+independent subreddit/multireddit/follow lists, an expandable Multireddits drawer
+list, and a discoverable subreddit search screen.
+
+Daniel set a usage boundary for this work: stop at a completed feature around 55%
+remaining, or by about 50% remaining. Preserve a clear source checkpoint and the
+unfinished requests at that boundary. The APK build/push hold still applies.

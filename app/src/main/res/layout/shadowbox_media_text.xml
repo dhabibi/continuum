@@ -20,7 +20,7 @@
         android:textSize="?attr/title_font_20"
         android:fontFamily="?attr/title_font_family" />
 
-    <androidx.recyclerview.widget.RecyclerView
+    <ml.docilealligator.infinityforreddit.shadowbox.ShadowboxTextRecyclerView
         android:id="@+id/content_recycler_view_shadowbox_media_text"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

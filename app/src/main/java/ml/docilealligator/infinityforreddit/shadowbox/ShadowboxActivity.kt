@@ -223,6 +223,9 @@ class ShadowboxActivity : BaseActivity() {
             return
         }
         this.adapter = adapter
+        // Vertical gestures navigate posts here. Keep this screen free of the media viewers'
+        // swipe-to-dismiss wrapper, regardless of the global vertical-dismiss preference.
+        binding.viewPager2ShadowboxActivity.orientation = ViewPager2.ORIENTATION_VERTICAL
         binding.viewPager2ShadowboxActivity.adapter = adapter
         // Build the page either side of the one in front, rather than when the swipe starts.
         //

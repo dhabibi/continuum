@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.graphics.Insets
 import androidx.core.view.updatePadding
+import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.load.DataSource
@@ -20,8 +21,8 @@ import ml.docilealligator.infinityforreddit.databinding.ShadowboxMediaGalleryBin
 import ml.docilealligator.infinityforreddit.post.Post
 
 /**
- * A Reddit gallery page: every item in a vertical list, like Slide's album pages. Tapping an item
- * opens the gallery viewer on it; the list is padded so the last item can scroll clear of the panel.
+ * A Reddit gallery: horizontal pages within Shadowbox's vertical post pager. The fullscreen
+ * button opens the visible item in the gallery viewer; captions stay clear of the info panel.
  */
 class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
@@ -30,10 +31,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         get() = _binding!!
     private var adapter: GalleryAdapter? = null
     private var panelHeight = 0
-    private var bottomInset = 0
-
-    /** Height-to-width ratio the tiles are measured at before their image arrives. */
-    private var tileRatio = 1f
+    private var insets = Insets.NONE
 
     /**
      * The size a tile is measured to, and so the size its picture is asked for.
@@ -53,7 +51,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
      * The post's own preview, which stands in for the first tile until that item's still arrives.
      *
      * Reddit builds a gallery post's preview from its first item, which is the same assumption
-     * [tileRatio] already rests on. On the rare post where it is some other item, the first tile
+     * the tile sizing already rests on. On the rare post where it is some other item, the first tile
      * shows the wrong picture for as long as its own still takes to arrive and no longer.
      */
     private var postPreviewUrl: String? = null
@@ -61,7 +59,9 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
     override fun onCreateMediaView(inflater: LayoutInflater, container: ViewGroup) {
         val binding = ShadowboxMediaGalleryBinding.inflate(inflater, container, true)
         _binding = binding
-        binding.recyclerViewShadowboxMediaGallery.layoutManager = LinearLayoutManagerBugFixed(host)
+        binding.recyclerViewShadowboxMediaGallery.layoutManager =
+            LinearLayoutManagerBugFixed(host, RecyclerView.HORIZONTAL, false)
+        PagerSnapHelper().attachToRecyclerView(binding.recyclerViewShadowboxMediaGallery)
         // Tapping anywhere in the list toggles the chrome, exactly as tapping an image page does;
         // the panel's fullscreen button opens the gallery viewer on whichever item is in view.
         addTapToToggleChrome(binding.recyclerViewShadowboxMediaGallery)
@@ -70,7 +70,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
     override fun loadMedia() {
         val preview = ShadowboxPreviews.bestPreview(post, maxResolution, dataSavingMode)
         postPreviewUrl = preview?.previewUrl
-        tileRatio = ShadowboxPreviews.galleryTileRatio(preview)
+        val tileRatio = ShadowboxPreviews.galleryTileRatio(preview)
         val metrics = resources.displayMetrics
         tileWidth = metrics.widthPixels
         tileHeight = ShadowboxPreviews.galleryTileHeight(tileRatio, tileWidth, metrics.heightPixels)
@@ -82,12 +82,13 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
     override fun openFullViewer() {
         val layoutManager = _binding?.recyclerViewShadowboxMediaGallery?.layoutManager as? LinearLayoutManagerBugFixed
-        val index = layoutManager?.findFirstVisibleItemPosition()?.takeIf { it >= 0 } ?: 0
+        val index = layoutManager?.findFirstCompletelyVisibleItemPosition()?.takeIf { it >= 0 }
+            ?: layoutManager?.findFirstVisibleItemPosition()?.takeIf { it >= 0 } ?: 0
         ShadowboxMediaIntents.openGallery(host, post, index)
     }
 
     override fun onInsetsChanged(insets: Insets) {
-        bottomInset = insets.bottom
+        this.insets = insets
         applyListPadding()
     }
 
@@ -98,7 +99,10 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
     private fun applyListPadding() {
         // The panel's own height already includes the bottom inset it is padded by.
-        _binding?.recyclerViewShadowboxMediaGallery?.updatePadding(bottom = maxOf(panelHeight, bottomInset))
+        _binding?.recyclerViewShadowboxMediaGallery?.updatePadding(
+            left = insets.left, top = insets.top, right = insets.right,
+            bottom = maxOf(panelHeight, insets.bottom)
+        )
     }
 
     override fun onDestroyView() {
@@ -129,10 +133,6 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         }
 
         fun bind(item: Post.Gallery, position: Int) {
-            binding.imageViewItemShadowboxGallery.setRatio(tileRatio)
-            // A portrait ratio on a full-width tile can work out taller than the screen; cap it so
-            // one image cannot fill a whole scroll of the page.
-            binding.imageViewItemShadowboxGallery.setRatioMaxHeight(resources.displayMetrics.heightPixels)
             binding.errorImageViewItemShadowboxGallery.visibility = View.GONE
             binding.playBadgeImageViewItemShadowboxGallery.visibility =
                 if (item.mediaType == Post.Gallery.TYPE_VIDEO) View.VISIBLE else View.GONE
