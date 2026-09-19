@@ -26,6 +26,9 @@ To import legacy combined links, open **Create Multireddit → Import link** and
 paste `https://reddit.com/r/a+b+c`, `/r/a+b+c`, `r/a+b+c`, or `a+b+c`.
 Names are deduplicated case-insensitively. Review the selection, give the
 multireddit a local name, and save. Anonymous imports use the existing local DB.
+Each imported list is a separate local subscription feed, loaded by the same
+anonymous feed loader as Home. The proxy encodes the combined community
+separator as `%2B` for Reddit OAuth; literal `+` is redirected to Reddit's homepage.
 
 Build the service from this directory:
 

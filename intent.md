@@ -25,3 +25,8 @@ installation, the second build uses a separate `org.cygnusx1.continuum.proxy`
 package, shown as Continuum Proxy, with a persistent private key for future
 updates. This is an implementation choice made while the optional installation
 preference question was unanswered; it does not authorize deleting the old app.
+
+Daniel reported that imported lists saved but their feeds failed while single
+subreddits worked. He directed that these act as separate local subscription
+feeds using anonymous Home's existing implementation. Reuse that maintained
+local-list/shared-loader path; no server-owned Reddit multireddit is required.

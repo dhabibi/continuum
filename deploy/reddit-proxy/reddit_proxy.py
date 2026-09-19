@@ -175,6 +175,17 @@ def raw_target(request: Request) -> str:
     return path + (f"?{query}" if query else "")
 
 
+def reddit_api_target(request: Request) -> str:
+    path, separator, query = raw_target(request).partition("?")
+    parts = path.split("/", 3)
+    if len(parts) >= 3 and parts[1].lower() == "r":
+        # Retrofit leaves '+' literal in path parameters. Reddit's anonymous OAuth
+        # API redirects that combined feed to its homepage, but accepts '%2B'.
+        # Encode only the community selector; query '+' and existing escapes stay intact.
+        parts[2] = parts[2].replace("+", "%2B")
+    return "/".join(parts) + separator + query
+
+
 async def reddit_request(request: Request, token: str):
     headers = {
         **device_headers(), **_extra_headers,
@@ -187,7 +198,7 @@ async def reddit_request(request: Request, token: str):
         headers["Content-Type"] = request.headers["content-type"]
     body = await request.body()
     return await app.state.reddit.request(
-        request.method, API_BASE + raw_target(request), headers=headers,
+        request.method, API_BASE + reddit_api_target(request), headers=headers,
         data=body if body else None, allow_redirects=False,
     )
 

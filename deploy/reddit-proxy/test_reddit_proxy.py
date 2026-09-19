@@ -36,6 +36,19 @@ class RewritingTests(unittest.TestCase):
         self.assertEqual(result["body"], source["body"])
         self.assertEqual(result["url"], proxy.PUBLIC_BASE + "/media/i.redd.it/embed.png")
 
+    def test_local_subscription_feed_encodes_separators_without_changing_queries(self):
+        req = request("/r/LocalLLaMA+MachineLearning/hot.json",
+                      query=b"after=t3_abc&raw_json=1&q=machine+learning")
+        self.assertEqual(proxy.reddit_api_target(req),
+                         "/r/LocalLLaMA%2BMachineLearning/hot.json"
+                         "?after=t3_abc&raw_json=1&q=machine+learning")
+
+    def test_existing_escapes_single_subreddits_and_other_paths_stay_intact(self):
+        for path in ("/r/LocalLLaMA%2BMachineLearning/new.json", "/r/LocalLLaMA/hot.json",
+                     "/user/example/submitted.json", "/comments/id/a+b.json"):
+            with self.subTest(path=path):
+                self.assertEqual(proxy.reddit_api_target(request(path)), path)
+
     def test_host_injection_and_suffix_spoofs_are_rejected(self):
         for host in ("i.redd.it.evil.com", "localhost", "127.0.0.1", "evil@i.redd.it",
                      "evil%2fi.redd.it", "i.redd.it:443", "redditstatic.com.evil"):
@@ -51,6 +64,16 @@ class RewritingTests(unittest.TestCase):
 
 
 class MediaTests(unittest.IsolatedAsyncioTestCase):
+    async def test_api_request_uses_the_encoded_feed_target(self):
+        req = request("/r/AskReddit+NoStupidQuestions/hot.json", query=b"limit=2&after=t3_next")
+        upstream = AsyncMock()
+        with patch.object(req, "body", AsyncMock(return_value=b"")), \
+                patch.object(proxy.app.state, "reddit", upstream, create=True):
+            await proxy.reddit_request(req, "dummy-token")
+        self.assertEqual(upstream.request.call_args.args[:2],
+                         ("GET", "https://oauth.reddit.com/r/AskReddit%2BNoStupidQuestions/hot.json"
+                          "?limit=2&after=t3_next"))
+
     async def test_encoded_path_range_and_stream_are_preserved(self):
         seen = []
 
