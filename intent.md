@@ -53,3 +53,7 @@ list, and a discoverable subreddit search screen.
 Daniel set a usage boundary for this work: stop at a completed feature around 55%
 remaining, or by about 50% remaining. Preserve a clear source checkpoint and the
 unfinished requests at that boundary. The APK build/push hold still applies.
+
+Daniel subsequently requested "Build the apk", lifting that hold for the combined
+image and five-feature release. Build and deliver an update signed with the
+preserved key, using the existing private VPS download location.

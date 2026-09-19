@@ -1,9 +1,9 @@
 # Continuum VPS proxy fork
 
-Daniel's current batching instruction (September 19): do not build another APK
-until he asks, because more features are coming. Keep app changes local while
-this hold applies; pushing the current branch triggers the APK workflow. Record
-unrun Android checks in current_state.md rather than claiming they passed.
+Daniel explicitly requested the combined APK after the September 19 feature
+batch. The build/push hold is lifted for this release. Pushing vps-proxy triggers
+the APK workflow; use that run instead of dispatching a duplicate. Record actual
+build/test evidence in current_state.md.
 
 This repository is Daniel's Continuum fork and the canonical source for its Reddit
 proxy. `upstream` is cygnusx-1-org/continuum; push changes only to `origin`.
