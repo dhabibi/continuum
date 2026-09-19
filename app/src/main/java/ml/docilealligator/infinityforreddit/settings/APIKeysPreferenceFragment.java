@@ -143,6 +143,7 @@ public class APIKeysPreferenceFragment extends CustomFontPreferenceFragmentCompa
         ((Infinity) requireActivity().getApplication()).getAppComponent().inject(this);
 
         setupEnableOverridesPreference();
+        setupApiBaseUrlPreference();
         setupClientIdPreference();
         setupGiphyApiKeyPreference();
         setupUserAgentPreference();
@@ -168,6 +169,44 @@ public class APIKeysPreferenceFragment extends CustomFontPreferenceFragmentCompa
                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             enableOverridesPref.setSummary(styled);
         }
+    }
+
+    private void setupApiBaseUrlPreference() {
+        CustomFontEditTextPreference apiBaseUrlPref = findPreference(SharedPreferencesUtils.API_BASE_URL_PREF_KEY);
+        if (apiBaseUrlPref == null) {
+            Log.e(TAG, "Could not find API Base URL preference");
+            return;
+        }
+
+        apiBaseUrlPref.setOnBindEditTextListener(editText -> {
+            editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+            editText.setSingleLine(true);
+            String value = apiBaseUrlPref.getText();
+            if (value == null || value.equals(APIUtils.DEFAULT_API_BASE_URI)) {
+                editText.setText("");
+            }
+        });
+        apiBaseUrlPref.setSummaryProvider((Preference.SummaryProvider<EditTextPreference>) preference -> {
+            String value = preference.getText();
+            return value == null || value.isEmpty() || value.equals(APIUtils.DEFAULT_API_BASE_URI)
+                    ? preference.getContext().getString(R.string.tap_to_set_api_base_url) : value;
+        });
+        apiBaseUrlPref.setOnPreferenceChangeListener((preference, newValue) -> {
+            String value = APIUtils.normalizeApiBaseUri((String) newValue);
+            if (value == null) {
+                Toast.makeText(getContext(), R.string.invalid_api_base_url, Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            boolean saved = mSharedPreferences.edit()
+                    .putString(SharedPreferencesUtils.API_BASE_URL_PREF_KEY, value).commit();
+            if (saved) {
+                apiBaseUrlPref.setText(value);
+                markRestartPendingAndWarn();
+            } else {
+                Toast.makeText(getContext(), R.string.error_saving_api_base_url, Toast.LENGTH_SHORT).show();
+            }
+            return false;
+        });
     }
 
     private void setupClientIdPreference() {

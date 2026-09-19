@@ -12,6 +12,15 @@
         app:title="@string/settings_enable_api_key_overrides_title" />
 
     <ml.docilealligator.infinityforreddit.customviews.preference.CustomFontEditTextPreference
+        android:defaultValue="@string/default_api_base_url"
+        android:dependency="@string/enable_api_key_overrides_pref_key"
+        android:key="@string/api_base_url_pref_key"
+        android:summary="@string/tap_to_set_api_base_url"
+        android:title="@string/settings_api_base_url_title"
+        app:iconSpaceReserved="false"
+        app:useSimpleSummaryProvider="true" />
+
+    <ml.docilealligator.infinityforreddit.customviews.preference.CustomFontEditTextPreference
         android:defaultValue="@string/default_client_id"
         android:dependency="@string/enable_api_key_overrides_pref_key"
         android:key="@string/client_id_pref_key"

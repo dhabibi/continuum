@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.account.Account;
+import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.RequestBody;
 import org.json.JSONArray;
@@ -27,6 +28,7 @@ public class APIUtils {
     public static final String OAUTH_URL = "https://www.reddit.com/api/v1/authorize.compact";
     public static final String OAUTH_API_BASE_URI = "https://oauth.reddit.com";
     public static final String API_BASE_URI = "https://www.reddit.com";
+    public static final String DEFAULT_API_BASE_URI = "https://www.reddit.com/";
     public static final String API_UPLOAD_MEDIA_URI = "https://reddit-uploaded-media.s3-accelerate.amazonaws.com";
     public static final String API_UPLOAD_VIDEO_URI = "https://reddit-uploaded-video.s3-accelerate.amazonaws.com";
     public static final String REDGIFS_API_BASE_URI = "https://api.redgifs.com";
@@ -188,6 +190,31 @@ public class APIUtils {
             return defaultRedirectUri;
         }
         return redirectUri;
+    }
+
+    @Nullable
+    public static String normalizeApiBaseUri(@Nullable String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return DEFAULT_API_BASE_URI;
+        }
+        HttpUrl url = HttpUrl.parse(value.trim());
+        if (url == null || !url.isHttps() || !url.username().isEmpty()
+                || !url.password().isEmpty() || url.query() != null || url.fragment() != null) {
+            return null;
+        }
+        String normalized = url.toString();
+        return normalized.endsWith("/") ? normalized : normalized + "/";
+    }
+
+    public static String getApiBaseUri(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences(
+                SharedPreferencesUtils.DEFAULT_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        if (!areOverridesEnabled(preferences)) {
+            return DEFAULT_API_BASE_URI;
+        }
+        String value = normalizeApiBaseUri(preferences.getString(
+                SharedPreferencesUtils.API_BASE_URL_PREF_KEY, DEFAULT_API_BASE_URI));
+        return value == null ? DEFAULT_API_BASE_URI : value;
     }
 
     // Initialize mutable configurable fields from SharedPreferences at app startup

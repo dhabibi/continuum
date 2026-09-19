@@ -1,0 +1,20 @@
+# Continuum VPS proxy fork
+
+This repository is Daniel's Continuum fork and the canonical source for its Reddit
+proxy. `upstream` is cygnusx-1-org/continuum; push changes only to `origin`.
+Read `intent.md` and the local `current_state.md` before substantive work.
+
+The Android app is under `app/`. Keep the API Base URL setting in the existing
+API Keys screen, with the existing overrides switch and restart behavior.
+The proxy lives in `deploy/reddit-proxy/`; its supporting deployment is on
+habibilabs at `/srv/hermes/repos/reddit-proxy`, owned by hermes. Use the configured
+SSH alias. Deployment secrets and endpoint configuration stay outside Git.
+
+Build Android with `./gradlew :app:assembleDebug --no-daemon --max-workers=2`.
+The manual `Proxy APK` GitHub workflow installs the matching JDK/Android SDK.
+Check proxy behavior with `python -m unittest discover -s deploy/reddit-proxy`.
+Keep checks focused on changed behavior; preserve upstream build standards.
+
+Use `.scratch/` for local evidence. The anonymous proxy must remain private to the
+tailnet, bound to loopback on the host, with Reddit-only media targets. Preserve
+other Tailscale routes and services. Do not restart hermes-gateway.

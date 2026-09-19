@@ -79,9 +79,9 @@ abstract class NetworkModule {
     @Provides
     @Named("base")
     @Singleton
-    static Retrofit provideBaseRetrofit(@Named("base") OkHttpClient okHttpClient) {
+    static Retrofit provideBaseRetrofit(Context context, @Named("base") OkHttpClient okHttpClient) {
         return new Retrofit.Builder()
-            .baseUrl(APIUtils.API_BASE_URI)
+            .baseUrl(APIUtils.getApiBaseUri(context))
             .client(okHttpClient)
             .addConverterFactory(ScalarsConverterFactory.create())
             .addConverterFactory(SortTypeConverterFactory.create())

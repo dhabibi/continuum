@@ -135,3 +135,9 @@ notes/*
 android-button-masher/*
 
 .kotlin
+
+# Local deployment configuration and work evidence
+current_state.md
+.scratch/
+deploy/reddit-proxy/.env
+__pycache__/
