@@ -2504,7 +2504,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                                 ((PostGalleryViewHolder) holder).binding.loadImageErrorTextViewItemGallery.setVisibility(View.GONE);
                             }
                             scheduleNextClipPreload();
-                        });
+                        }, this::stopNextClipPreload);
                 if (player != null) {
                     inlineGifPlayers.put(imageView, player);
                     return;
@@ -4881,6 +4881,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                         if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
                                 && player.getPlaybackState() == Player.STATE_READY) {
                             scheduleNextClipPreload();
+                        }
+                        if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
+                                && player.getPlaybackState() == Player.STATE_BUFFERING) {
+                            stopNextClipPreload();
                         }
                     }
 

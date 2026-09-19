@@ -80,6 +80,24 @@ class InlineGifVideoPlayerTest {
     }
 
     @Test
+    fun `foreground buffering suspends preloading and recovery can resume it`() {
+        var ready = 0
+        var buffering = 0
+        val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, { ready++ }, { buffering++ })!!
+        val listener = argumentCaptor<Player.Listener>()
+        verify(player).addListener(listener.capture())
+        listener.firstValue.onPlaybackStateChanged(Player.STATE_BUFFERING)
+        assertEquals(1, buffering)
+        listener.firstValue.onRenderedFirstFrame()
+        assertEquals(1, ready)
+        listener.firstValue.onPlaybackStateChanged(Player.STATE_BUFFERING)
+        listener.firstValue.onPlaybackStateChanged(Player.STATE_READY)
+        assertEquals(2, buffering)
+        assertEquals(2, ready)
+        helper.release()
+    }
+
+    @Test
     fun `mp4 keeps the gif image alignment and aspect ratio`() {
         image.scaleType = ImageView.ScaleType.FIT_START
         val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, {})!!

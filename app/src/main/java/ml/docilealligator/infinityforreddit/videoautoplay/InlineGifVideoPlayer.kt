@@ -23,6 +23,7 @@ class InlineGifVideoPlayer private constructor(
     private val creator: ExoCreator,
     private val onFailure: Consumer<InlineGifVideoPlayer>,
     private val onReady: Runnable,
+    private val onBuffering: Runnable,
 ) {
     private val player = creator.createPlayer()
     private val handler = Handler(Looper.getMainLooper())
@@ -35,6 +36,7 @@ class InlineGifVideoPlayer private constructor(
     }
     private var videoSize = VideoSize.UNKNOWN
     private var released = false
+    private var hasRenderedFrame = false
     private val layoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> resize() }
 
     private fun start(uri: Uri) {
@@ -57,9 +59,16 @@ class InlineGifVideoPlayer private constructor(
 
             override fun onRenderedFirstFrame() {
                 if (!released) {
+                    hasRenderedFrame = true
                     texture.alpha = 1f
                     onReady.run()
                 }
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                if (released) return
+                if (state == Player.STATE_BUFFERING) onBuffering.run()
+                if (state == Player.STATE_READY && hasRenderedFrame) onReady.run()
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -114,16 +123,18 @@ class InlineGifVideoPlayer private constructor(
     companion object {
         /** Unsupported containers or failed setup keep the original GIF path. */
         @JvmStatic
+        @JvmOverloads
         fun create(
             image: ImageView, uri: Uri, creator: ExoCreator,
             onFailure: Consumer<InlineGifVideoPlayer>,
             onReady: Runnable,
+            onBuffering: Runnable = Runnable {},
         ): InlineGifVideoPlayer? {
             val parent = image.parent as? FrameLayout ?: return null
             if (image.layoutParams !is FrameLayout.LayoutParams) return null
             var helper: InlineGifVideoPlayer? = null
             return try {
-                InlineGifVideoPlayer(image, parent, creator, onFailure, onReady).also {
+                InlineGifVideoPlayer(image, parent, creator, onFailure, onReady, onBuffering).also {
                     helper = it
                     it.start(uri)
                 }
