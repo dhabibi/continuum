@@ -98,7 +98,12 @@ class MediaPreloadBudgetTest {
             val playback = CacheDataSource.Factory().setCache(cache)
                 .setUpstreamDataSourceFactory { network }.createDataSource()
             playback.open(DataSpec.Builder().setUri(uri).setLength(65_536).build())
-            val read = playback.read(buffer, 0, buffer.size)
+            var read = 0
+            while (read < buffer.size) {
+                val count = playback.read(buffer, read, buffer.size - read)
+                assertTrue(count > 0)
+                read += count
+            }
             playback.close()
             assertEquals(65_536, read)
             assertArrayEquals(data.copyOfRange(0, 65_536), buffer)

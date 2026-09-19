@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.LruCache
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -27,11 +28,15 @@ class NextClipPreloader(
     private var manager: DefaultPreloadManager? = null
     private var budget: PreloadBudget? = null
     private var current: Uri? = null
+    private val recent = LruCache<Uri, Boolean>(16)
     private val stopAtDeadline = Runnable { stop() }
 
     fun preload(uri: Uri, resolution: Int, portrait: Boolean) {
         if (uri == current) return
         stop()
+        // Rebinding/voting on the same viewport must not repeatedly spend another network budget.
+        if (recent.get(uri) != null) return
+        recent.put(uri, true)
         current = uri
         val requestBudget = PreloadBudget()
         budget = requestBudget

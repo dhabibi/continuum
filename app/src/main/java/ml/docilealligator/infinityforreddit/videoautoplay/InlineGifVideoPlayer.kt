@@ -84,10 +84,16 @@ class InlineGifVideoPlayer private constructor(
         if (image.width == 0 || image.height == 0 || videoSize.width == 0 || videoSize.height == 0) return
         val videoAspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
         val viewAspect = image.width.toFloat() / image.height
-        val scaleX = if (videoAspect < viewAspect) videoAspect / viewAspect else 1f
-        val scaleY = if (videoAspect > viewAspect) viewAspect / videoAspect else 1f
+        val crop = image.scaleType == ImageView.ScaleType.CENTER_CROP
+        val scaleX = if ((videoAspect < viewAspect) != crop) videoAspect / viewAspect else 1f
+        val scaleY = if ((videoAspect > viewAspect) != crop) viewAspect / videoAspect else 1f
+        val alignment = when (image.scaleType) {
+            ImageView.ScaleType.FIT_START -> 0f
+            ImageView.ScaleType.FIT_END -> 1f
+            else -> 0.5f
+        }
         texture.setTransform(Matrix().apply {
-            setScale(scaleX, scaleY, image.width / 2f, image.height / 2f)
+            setScale(scaleX, scaleY, image.width * alignment, image.height * alignment)
         })
     }
 

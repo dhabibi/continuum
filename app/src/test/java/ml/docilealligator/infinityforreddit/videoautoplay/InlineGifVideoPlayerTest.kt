@@ -1,6 +1,7 @@
 package ml.docilealligator.infinityforreddit.videoautoplay
 
 import android.content.Context
+import android.graphics.Matrix
 import android.net.Uri
 import android.os.Looper
 import android.view.TextureView
@@ -11,6 +12,7 @@ import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.test.core.app.ApplicationProvider
@@ -58,7 +60,7 @@ class InlineGifVideoPlayerTest {
         val texture = parent.getChildAt(1) as TextureView
         assertSame(image, parent.getChildAt(0))
         assertSame(badge, parent.getChildAt(2))
-        assertEquals(0f, texture.alpha)
+        assertEquals(0f, texture.alpha, 0f)
         assertFalse(texture.isClickable)
         verify(player).volume = 0f
         verify(player).repeatMode = Player.REPEAT_MODE_ONE
@@ -68,11 +70,26 @@ class InlineGifVideoPlayerTest {
         val listener = argumentCaptor<Player.Listener>()
         verify(player).addListener(listener.capture())
         listener.firstValue.onRenderedFirstFrame()
-        assertEquals(1f, texture.alpha)
+        assertEquals(1f, texture.alpha, 0f)
         helper.release()
         helper.release()
         assertEquals(2, parent.childCount)
         verify(player, times(1)).release()
+    }
+
+    @Test
+    fun `mp4 keeps the gif image alignment and aspect ratio`() {
+        image.scaleType = ImageView.ScaleType.FIT_START
+        val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, {})!!
+        val listener = argumentCaptor<Player.Listener>()
+        verify(player).addListener(listener.capture())
+        listener.firstValue.onVideoSizeChanged(VideoSize(100, 100))
+        val values = FloatArray(9)
+        (parent.getChildAt(1) as TextureView).getTransform(Matrix()).getValues(values)
+        assertEquals(0.5f, values[Matrix.MSCALE_X], 0.001f)
+        assertEquals(1f, values[Matrix.MSCALE_Y], 0.001f)
+        assertEquals(0f, values[Matrix.MTRANS_X], 0.001f)
+        helper.release()
     }
 
     @Test

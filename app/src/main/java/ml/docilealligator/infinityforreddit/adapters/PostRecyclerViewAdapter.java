@@ -2248,13 +2248,18 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             last = Math.max(last, position);
             // Current playback gets the connection first. Its ready event schedules another pass.
             if (holder instanceof PostBaseVideoAutoplayViewHolder) {
-                ExoPlayerViewHelper helper = ((PostBaseVideoAutoplayViewHolder) holder).helper;
-                Player player = helper == null ? null : helper.getPlayer();
-                if (player != null && player.getPlaybackState() == Player.STATE_BUFFERING) return;
+                if (((PostBaseVideoAutoplayViewHolder) holder).toroPlayer.isBuffering()) return;
             }
             ImageView image = gifImageView(holder);
             InlineGifVideoPlayer gif = image == null ? null : inlineGifPlayers.get(image);
             if (gif != null && gif.isBuffering()) return;
+            // A raw-GIF fallback can be large. Do not compete with its foreground download.
+            if (gif == null && gifMediaView(holder) != null) {
+                boolean animating = holder instanceof PostWithPreviewTypeViewHolder
+                        ? ((PostWithPreviewTypeViewHolder) holder).animatingGif
+                        : ((PostGalleryViewHolder) holder).animatingGif;
+                if (animating) return;
+            }
         }
         if (last < 0) return;
         int step = mediaScrollingUp ? -1 : 1;
@@ -2268,6 +2273,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             String url = post.getPostType() == Post.GIF_TYPE ? post.getMp4Variant()
                     : post.getPostType() == Post.VIDEO_TYPE ? post.getVideoUrl() : null;
             if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) continue;
+            if (post.getPostType() == Post.GIF_TYPE && failedGifMp4s.get(url) != null) continue;
             if (nextClipPreloader == null) nextClipPreloader = mExoCreator.createPreloader();
             if (nextClipPreloader == null) return;
             ArrayList<Post.Preview> previews = post.getPreviews();
@@ -4791,6 +4797,11 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (position != RecyclerView.NO_POSITION) {
                 notifyItemChanged(position);
             }
+        }
+
+        boolean isBuffering() {
+            Player player = helper == null ? null : helper.getPlayer();
+            return player != null && player.getPlaybackState() == Player.STATE_BUFFERING;
         }
 
         void loadFallbackDirectVideo() {
