@@ -41,7 +41,6 @@ import com.bumptech.glide.request.transition.Transition;
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView;
 import com.github.piasy.biv.BigImageViewer;
 import com.github.piasy.biv.loader.ImageLoader;
-import com.github.piasy.biv.loader.glide.GlideImageLoader;
 import java.io.File;
 import java.util.Locale;
 import java.util.Objects;
@@ -60,6 +59,7 @@ import ml.docilealligator.infinityforreddit.asynctasks.SaveBitmapImageToFile;
 import ml.docilealligator.infinityforreddit.asynctasks.SaveGIFToFile;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
+import ml.docilealligator.infinityforreddit.customviews.ImagePreviewHandoff;
 import ml.docilealligator.infinityforreddit.customviews.slidr.Slidr;
 import ml.docilealligator.infinityforreddit.customviews.slidr.model.SlidrConfig;
 import ml.docilealligator.infinityforreddit.customviews.slidr.model.SlidrPosition;
@@ -71,6 +71,7 @@ import ml.docilealligator.infinityforreddit.font.FontFamily;
 import ml.docilealligator.infinityforreddit.font.FontStyle;
 import ml.docilealligator.infinityforreddit.font.TitleFontFamily;
 import ml.docilealligator.infinityforreddit.font.TitleFontStyle;
+import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader;
 import ml.docilealligator.infinityforreddit.resume.Restorable;
 import ml.docilealligator.infinityforreddit.resume.ResumeState;
 import ml.docilealligator.infinityforreddit.services.DownloadMediaService;
@@ -87,6 +88,7 @@ public class ViewImageOrGifActivity extends AppCompatActivity
     private static final String STATE_RESUME_ROTATION = "RRO";
 
     public static final String EXTRA_IMAGE_URL_KEY = "EIUK";
+    public static final String EXTRA_PREVIEW_URL_KEY = "EPVUK";
     public static final String EXTRA_GIF_URL_KEY = "EGUK";
     public static final String EXTRA_FILE_NAME_KEY = "EFNK";
     public static final String EXTRA_SUBREDDIT_OR_USERNAME_KEY = "ESOUK";
@@ -106,6 +108,9 @@ public class ViewImageOrGifActivity extends AppCompatActivity
     private RequestManager glide;
     @Nullable
     private String mImageUrl;
+    @Nullable
+    private String mPreviewUrl;
+    private ImagePreviewHandoff imageHandoff;
     @Nullable
     private String mImageFileName;
     @Nullable
@@ -145,10 +150,12 @@ public class ViewImageOrGifActivity extends AppCompatActivity
         getTheme().applyStyle(ContentFontFamily.valueOf(Objects.requireNonNull(mSharedPreferences
                 .getString(SharedPreferencesUtils.CONTENT_FONT_FAMILY_KEY, ContentFontFamily.Default.name()))).getResId(), true);
 
-        BigImageViewer.initialize(GlideImageLoader.with(this.getApplicationContext(),
+        BigImageViewer.initialize(ForegroundGlideImageLoader.with(this.getApplicationContext(),
                 ImageOkHttpClient.get(this.getApplicationContext())));
 
         binding = ActivityViewImageOrGifBinding.inflate(getLayoutInflater());
+        imageHandoff = new ImagePreviewHandoff(binding.imageViewViewImageOrGifActivity,
+                () -> binding.progressBarViewImageOrGifActivity.setVisibility(View.GONE));
         setContentView(binding.getRoot());
 
         EventBus.getDefault().register(this);
@@ -180,6 +187,7 @@ public class ViewImageOrGifActivity extends AppCompatActivity
         }
 
         Intent intent = getIntent();
+        mPreviewUrl = intent.getStringExtra(EXTRA_PREVIEW_URL_KEY);
         mImageUrl = intent.getStringExtra(EXTRA_GIF_URL_KEY);
         if (mImageUrl == null) {
             isGif = false;
@@ -292,11 +300,13 @@ public class ViewImageOrGifActivity extends AppCompatActivity
                 binding.progressBarViewImageOrGifActivity.setVisibility(View.GONE);
 
                 final SubsamplingScaleImageView view = binding.imageViewViewImageOrGifActivity.getSSIV();
+                if (view == null) imageHandoff.originalReady();
 
                 if (view != null) {
                     view.setOnImageEventListener(new SubsamplingScaleImageView.DefaultOnImageEventListener() {
                         @Override
                         public void onImageLoaded() {
+                            imageHandoff.originalReady();
                             view.setMinimumDpi(80);
                             view.setDoubleTapZoomDpi(240);
                             view.setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_FIXED);
@@ -368,7 +378,7 @@ public class ViewImageOrGifActivity extends AppCompatActivity
                 }
             });
         } else if (mImageUrl != null) {
-            binding.imageViewViewImageOrGifActivity.showImage(Uri.parse(mImageUrl));
+            imageHandoff.show(isGif ? null : mPreviewUrl, mImageUrl);
         } else {
             binding.progressBarViewImageOrGifActivity.setVisibility(View.GONE);
             binding.loadImageErrorLinearLayoutViewImageOrGifActivity.setVisibility(View.VISIBLE);
@@ -700,6 +710,7 @@ public class ViewImageOrGifActivity extends AppCompatActivity
 
     @Override
     public void onDestroy() {
+        imageHandoff.clear();
         EventBus.getDefault().unregister(this);
         BigImageViewer.imageLoader().cancelAll();
         super.onDestroy();

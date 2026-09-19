@@ -36,3 +36,10 @@ playback when Reddit supplies it, share learned bandwidth estimates across clips
 and preload a bounded amount of one upcoming clip. Keep current quality settings,
 respect autoplay/data-saving/privacy gates, retain original GIF fallback, and
 deliver an APK update signed with the preserved v2 key.
+
+After confirming v3 videos/GIFs are very fast, Daniel identified remaining image
+loading delays and asked for improvements. The image work adds a cached-preview
+handoff, foreground priority, display-sized preview selection and less eager
+gallery loading, while preserving original image quality/download URLs. Daniel
+then explicitly asked to hold the next APK build while he adds more features.
+Keep this batch in source until he requests the combined build.

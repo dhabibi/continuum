@@ -378,7 +378,14 @@ public abstract class PostFragmentBase extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (compactThumbnailPreloader != null) compactThumbnailPreloader.resume();
         scrollToPostSwipedToInPostDetail();
+    }
+
+    @Override
+    public void onPause() {
+        if (compactThumbnailPreloader != null) compactThumbnailPreloader.pause();
+        super.onPause();
     }
 
     @Override

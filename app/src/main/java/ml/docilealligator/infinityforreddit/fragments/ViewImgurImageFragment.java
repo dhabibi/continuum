@@ -34,7 +34,6 @@ import com.bumptech.glide.request.transition.Transition;
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView;
 import com.github.piasy.biv.BigImageViewer;
 import com.github.piasy.biv.loader.ImageLoader;
-import com.github.piasy.biv.loader.glide.GlideImageLoader;
 import java.io.File;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -51,6 +50,7 @@ import ml.docilealligator.infinityforreddit.asynctasks.SaveBitmapImageToFile;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
 import ml.docilealligator.infinityforreddit.databinding.FragmentViewImgurImageBinding;
+import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader;
 import ml.docilealligator.infinityforreddit.post.ImgurMedia;
 import ml.docilealligator.infinityforreddit.services.DownloadMediaService;
 import ml.docilealligator.infinityforreddit.utils.MediaFileNameUtils;
@@ -79,6 +79,8 @@ public class ViewImgurImageFragment extends Fragment {
     private boolean isDownloading = false;
     private int currentRotation = 0; // Track current rotation in degrees (0, 90, 180, 270)
     private FragmentViewImgurImageBinding binding;
+    private boolean imageViewAlive;
+    private boolean imageRequestStarted;
     ViewGalleryViewModel viewGalleryViewModel;
 
     public ViewImgurImageFragment() {
@@ -90,10 +92,12 @@ public class ViewImgurImageFragment extends Fragment {
         // ViewImgurMediaActivity does not install a loader of its own, and BigImageView cannot load
         // without one. The two-argument overload is required: see ImageOkHttpClient for what the
         // one-argument one silently throws away.
-        BigImageViewer.initialize(GlideImageLoader.with(activity.getApplicationContext(),
+        BigImageViewer.initialize(ForegroundGlideImageLoader.with(activity.getApplicationContext(),
                 ImageOkHttpClient.get(activity.getApplicationContext())));
 
         binding = FragmentViewImgurImageBinding.inflate(inflater, container, false);
+        imageViewAlive = true;
+        imageRequestStarted = false;
 
         ((Infinity) activity.getApplication()).getAppComponent().inject(this);
 
@@ -168,6 +172,7 @@ public class ViewImgurImageFragment extends Fragment {
 
             @Override
             public void onFail(Exception error) {
+                imageRequestStarted = false;
                 binding.progressBarViewImgurImageFragment.setVisibility(View.GONE);
                 binding.loadImageErrorLinearLayoutViewImgurImageFragment.setVisibility(View.VISIBLE);
             }
@@ -294,6 +299,8 @@ public class ViewImgurImageFragment extends Fragment {
     }
 
     private void loadImage() {
+        if (!imageViewAlive || !isResumed() || imageRequestStarted) return;
+        imageRequestStarted = true;
         // Rotation is re-applied from the image-loaded callback, which is the first moment the
         // subsampling view exists to carry it.
         binding.imageViewViewImgurImageFragment.showImage(Uri.parse(imgurMedia.getLink()));
@@ -503,6 +510,8 @@ public class ViewImgurImageFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        imageViewAlive = false;
+        imageRequestStarted = false;
         super.onDestroyView();
         // Not glide.clear: BigImageView is not a Glide target, and the tiles it holds are the
         // subsampling view's rather than Glide's. Same teardown as the Reddit gallery page.
@@ -511,5 +520,23 @@ public class ViewImgurImageFragment extends Fragment {
         if (ssiv != null) {
             ssiv.recycle();
         }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        SubsamplingScaleImageView view = binding.imageViewViewImgurImageFragment.getSSIV();
+        if (view == null || !view.hasImage()) imageRequestStarted = false;
+        loadImage();
+    }
+
+    @Override
+    public void onPause() {
+        SubsamplingScaleImageView view = binding.imageViewViewImgurImageFragment.getSSIV();
+        if (view == null || !view.hasImage()) {
+            binding.imageViewViewImgurImageFragment.cancel();
+            imageRequestStarted = false;
+        }
+        super.onPause();
     }
 }

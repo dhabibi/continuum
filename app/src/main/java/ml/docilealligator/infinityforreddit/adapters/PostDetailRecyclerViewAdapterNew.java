@@ -478,6 +478,7 @@ public class PostDetailRecyclerViewAdapterNew extends RecyclerView.Adapter<Recyc
                         intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, mediaMetadata.original.url);
                     } else {
                         intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, mediaMetadata.original.url);
+                        intent.putExtra(ViewImageOrGifActivity.EXTRA_PREVIEW_URL_KEY, mediaMetadata.downscaled.url);
                     }
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_IS_NSFW, mPost.isNSFW());
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, mPost.getSubredditName());
@@ -505,6 +506,7 @@ public class PostDetailRecyclerViewAdapterNew extends RecyclerView.Adapter<Recyc
                         intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, mediaMetadata.original.url);
                     } else {
                         intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, mediaMetadata.original.url);
+                        intent.putExtra(ViewImageOrGifActivity.EXTRA_PREVIEW_URL_KEY, mediaMetadata.downscaled.url);
                     }
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_IS_NSFW, mPost.isNSFW());
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, mPost.getSubredditName());
@@ -1717,6 +1719,13 @@ public class PostDetailRecyclerViewAdapterNew extends RecyclerView.Adapter<Recyc
                 if (albumIntent == null) {
                     Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, post.getUrl());
+                    List<Post.Preview> previews = post.getPreviews();
+                    if (previews != null && !previews.isEmpty()) {
+                        Post.Preview preview = getSuitablePreview(previews);
+                        if (preview != null) {
+                            intent.putExtra(ViewImageOrGifActivity.EXTRA_PREVIEW_URL_KEY, preview.getPreviewUrl());
+                        }
+                    }
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, post.getSubredditName()
                             + "-" + post.getId() + ".jpg");
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, post.getTitle());

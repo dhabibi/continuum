@@ -43,7 +43,6 @@ import com.bumptech.glide.request.transition.Transition;
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView;
 import com.github.piasy.biv.BigImageViewer;
 import com.github.piasy.biv.loader.ImageLoader;
-import com.github.piasy.biv.loader.glide.GlideImageLoader;
 import java.io.File;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -62,7 +61,9 @@ import ml.docilealligator.infinityforreddit.bottomsheetfragments.CopyTextBottomS
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.UrlMenuBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
+import ml.docilealligator.infinityforreddit.customviews.ImagePreviewHandoff;
 import ml.docilealligator.infinityforreddit.databinding.FragmentViewRedditGalleryImageOrGifBinding;
+import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader;
 import ml.docilealligator.infinityforreddit.post.Post;
 import ml.docilealligator.infinityforreddit.services.DownloadMediaService;
 import ml.docilealligator.infinityforreddit.utils.MediaFileNameUtils;
@@ -101,12 +102,18 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         // Required empty public constructor
     }
 
+    private ImagePreviewHandoff imageHandoff;
+    private boolean imageViewAlive;
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        BigImageViewer.initialize(GlideImageLoader.with(activity.getApplicationContext(),
+        BigImageViewer.initialize(ForegroundGlideImageLoader.with(activity.getApplicationContext(),
                 ImageOkHttpClient.get(activity.getApplicationContext())));
 
         binding = FragmentViewRedditGalleryImageOrGifBinding.inflate(inflater, container, false);
+        imageViewAlive = true;
+        imageHandoff = new ImagePreviewHandoff(binding.imageViewViewRedditGalleryImageOrGifFragment,
+                () -> binding.progressBarViewRedditGalleryImageOrGifFragment.setVisibility(View.GONE));
 
         ((Infinity) activity.getApplication()).getAppComponent().inject(this);
 
@@ -159,11 +166,13 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
                 binding.progressBarViewRedditGalleryImageOrGifFragment.setVisibility(View.GONE);
 
                 final SubsamplingScaleImageView view = binding.imageViewViewRedditGalleryImageOrGifFragment.getSSIV();
+                if (view == null) imageHandoff.originalReady();
 
                 if (view != null) {
                     view.setOnImageEventListener(new SubsamplingScaleImageView.DefaultOnImageEventListener() {
                         @Override
                         public void onImageLoaded() {
+                            imageHandoff.originalReady();
                             view.setMinimumDpi(80);
                             view.setDoubleTapZoomDpi(240);
                             view.setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_FIXED);
@@ -360,11 +369,13 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
     }
 
     private void loadImage() {
-        if (isFallback) {
-            binding.imageViewViewRedditGalleryImageOrGifFragment.showImage(Uri.parse(media.fallbackUrl));
-        } else {
-            binding.imageViewViewRedditGalleryImageOrGifFragment.showImage(Uri.parse(media.url));
+        if (!imageViewAlive) return;
+        String preview = media.mediaType == Post.Gallery.TYPE_IMAGE ? media.feedPreviewUrl : null;
+        if (!isResumed()) {
+            imageHandoff.showPreview(preview);
+            return;
         }
+        imageHandoff.show(preview, isFallback ? media.fallbackUrl : media.url);
         // Static images re-apply rotation in the SSIV onImageLoaded callback; GIFs are
         // rotated at the view level, which persists on the BigImageView itself.
         if (currentRotation != 0 && media.mediaType == Post.Gallery.TYPE_GIF) {
@@ -665,6 +676,8 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
+        imageViewAlive = false;
+        imageHandoff.clear();
         super.onDestroyView();
         binding.imageViewViewRedditGalleryImageOrGifFragment.cancel();
         isFallback = false;
@@ -672,5 +685,14 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         if (subsamplingScaleImageView != null) {
             subsamplingScaleImageView.recycle();
         }
+    }
+
+    @Override
+    public void onPause() {
+        SubsamplingScaleImageView view = binding.imageViewViewRedditGalleryImageOrGifFragment.getSSIV();
+        if (view == null || !view.hasImage()) {
+            binding.imageViewViewRedditGalleryImageOrGifFragment.cancel();
+        }
+        super.onPause();
     }
 }

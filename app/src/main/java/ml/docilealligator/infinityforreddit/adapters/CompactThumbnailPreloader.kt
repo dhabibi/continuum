@@ -7,6 +7,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.bumptech.glide.RequestManager
+import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
@@ -67,6 +68,8 @@ class CompactThumbnailPreloader(
     private var anchorFullName: String? = null
     private var anchorFallbackPosition = RecyclerView.NO_POSITION
     private var released = false
+    private var paused = false
+    private val prewarmTargets = HashSet<Target<Drawable>>()
 
     // Held so the very same instance can be removed again. New pages can put different posts at the
     // same positions -- a refresh, a filter change -- so the window is rebuilt even when its range
@@ -111,18 +114,14 @@ class CompactThumbnailPreloader(
 
     /** Stop everything, for when the view goes. A refresh still held for its prewarm is let through. */
     fun release() {
+        pause()
         released = true
         observedAdapter?.removeOnPagesUpdatedListener(onPagesUpdated)
         observedAdapter = null
-        clearTargets()
-        for (pending in ArrayList(pendingPrewarms)) {
-            pending.set(Unit)
-        }
-        pendingPrewarms.clear()
     }
 
     private fun updateWindow() {
-        if (released) {
+        if (released || paused) {
             return
         }
         val adapter = adapterProvider() ?: return
@@ -170,7 +169,7 @@ class CompactThumbnailPreloader(
                 continue
             }
             val preload = adapter.previewPreloadRequest(post) ?: continue
-            targets[key] = preload.request.preload(preload.width, preload.height)
+            targets[key] = preload.request.clone().priority(Priority.LOW).preload(preload.width, preload.height)
         }
 
         val iterator = targets.entries.iterator()
@@ -196,7 +195,7 @@ class CompactThumbnailPreloader(
 
     private fun startPrewarm(posts: List<Post>, done: SettableFuture<Unit>) {
         val adapter = adapterProvider()
-        if (released || adapter == null || done.isDone) {
+        if (released || paused || adapter == null || done.isDone) {
             done.set(Unit)
             return
         }
@@ -225,6 +224,7 @@ class CompactThumbnailPreloader(
             override fun onLoadFailed(
                 e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean
             ): Boolean {
+                prewarmTargets.remove(target)
                 if (--remaining == 0) {
                     done.set(Unit)
                 }
@@ -235,6 +235,7 @@ class CompactThumbnailPreloader(
                 resource: Drawable, model: Any, target: Target<Drawable>,
                 dataSource: DataSource, isFirstResource: Boolean
             ): Boolean {
+                prewarmTargets.remove(target)
                 if (--remaining == 0) {
                     done.set(Unit)
                 }
@@ -244,7 +245,8 @@ class CompactThumbnailPreloader(
         mainHandler.postDelayed({ done.set(Unit) }, REFRESH_HOLD_CAP_MS)
         for (preload in requests) {
             // A picture already in memory reports inside preload(), before the loop moves on.
-            preload.request.addListener(listener).preload(preload.width, preload.height)
+            val target = preload.request.addListener(listener).preload(preload.width, preload.height)
+            if (target.request?.isComplete != true) prewarmTargets.add(target)
         }
     }
 
@@ -292,6 +294,22 @@ class CompactThumbnailPreloader(
             else -> return null
         }
         return range.takeIf { it.first != RecyclerView.NO_POSITION && it.second != RecyclerView.NO_POSITION }
+    }
+
+    fun pause() {
+        paused = true
+        clearTargets()
+        for (target in prewarmTargets.toList()) glide.clear(target)
+        prewarmTargets.clear()
+        for (pending in ArrayList(pendingPrewarms)) pending.set(Unit)
+        pendingPrewarms.clear()
+    }
+
+    fun resume() {
+        if (released || !paused) return
+        paused = false
+        windowItemCount = -1
+        recyclerView.post { updateWindow() }
     }
 
     private fun clearTargets() {

@@ -237,7 +237,7 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
     private void setupViewPager(@Nullable Bundle savedInstanceState) {
         sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
         binding.viewPagerViewRedditGalleryActivity.setAdapter(sectionsPagerAdapter);
-        binding.viewPagerViewRedditGalleryActivity.setOffscreenPageLimit(3);
+        binding.viewPagerViewRedditGalleryActivity.setOffscreenPageLimit(1);
         if (savedInstanceState == null) {
             Bundle resumeState = ResumeState.claim(this);
             if (resumeState != null) {

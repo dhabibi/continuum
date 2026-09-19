@@ -442,7 +442,7 @@ public class ViewImgurMediaActivity extends AppCompatActivity
     private void setupViewPager() {
         sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
         binding.viewPagerViewImgurMediaActivity.setAdapter(sectionsPagerAdapter);
-        binding.viewPagerViewImgurMediaActivity.setOffscreenPageLimit(3);
+        binding.viewPagerViewImgurMediaActivity.setOffscreenPageLimit(1);
         // Here rather than in onCreate: the album arrives from Imgur after the screen is built, and
         // there is no page to move to until the adapter has one. A page past the end of a shortened
         // album is dropped rather than clamped -- landing on a different image than the one the user

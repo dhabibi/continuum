@@ -38,7 +38,6 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 import com.evernote.android.state.State;
 import com.github.piasy.biv.BigImageViewer;
-import com.github.piasy.biv.loader.glide.GlideImageLoader;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.snackbar.Snackbar;
 import com.livefront.bridge.Bridge;
@@ -63,6 +62,7 @@ import ml.docilealligator.infinityforreddit.events.ProvidePostListToViewPostDeta
 import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent;
 import ml.docilealligator.infinityforreddit.fragments.MorePostsInfoFragment;
 import ml.docilealligator.infinityforreddit.fragments.ViewPostDetailFragmentNew;
+import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader;
 import ml.docilealligator.infinityforreddit.post.LoadingMorePostsStatus;
 import ml.docilealligator.infinityforreddit.post.Post;
 import ml.docilealligator.infinityforreddit.post.PostType;
@@ -206,7 +206,7 @@ public class ViewPostDetailActivity extends BaseActivity
 
         makeOpaqueIfOwnWindow();
 
-        BigImageViewer.initialize(GlideImageLoader.with(this.getApplicationContext(),
+        BigImageViewer.initialize(ForegroundGlideImageLoader.with(this.getApplicationContext(),
                 ImageOkHttpClient.get(this.getApplicationContext())));
 
         binding = ActivityViewPostDetailBinding.inflate(getLayoutInflater());

@@ -71,9 +71,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.Map;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -152,6 +152,7 @@ import ml.docilealligator.infinityforreddit.user.UserMarkChanges;
 import ml.docilealligator.infinityforreddit.user.UserMarks;
 import ml.docilealligator.infinityforreddit.utils.APIUtils;
 import ml.docilealligator.infinityforreddit.utils.ImageHostUtils;
+import ml.docilealligator.infinityforreddit.utils.ImagePreviewSelector;
 import ml.docilealligator.infinityforreddit.utils.NewWindowUtils;
 import ml.docilealligator.infinityforreddit.utils.SavedPostCacheNotifier;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
@@ -2067,6 +2068,13 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
 
     @Nullable
     private Post.Preview getSuitablePreview(ArrayList<Post.Preview> previews) {
+        int width = cardPreviewWidthPx();
+        if (!mDataSavingMode && width > 0 && !previews.isEmpty()) {
+            int height = PostCardPreviewStyle.previewHeightPx(previews.get(0), mFixedHeightPreviewInCard,
+                    getMaxPreviewHeight(), width);
+            Post.Preview sized = ImagePreviewSelector.select(previews, width, height, mMaxResolution);
+            if (sized != null) return sized;
+        }
         @Nullable
         Post.Preview preview;
         if (!previews.isEmpty()) {
@@ -3721,6 +3729,14 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                 if (albumIntent == null) {
                     Intent intent = new Intent(mActivity, ViewImageOrGifActivity.class);
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, post.getUrl());
+                    ArrayList<Post.Preview> previews = post.getPreviews();
+                    if (previews != null && !previews.isEmpty()) {
+                        Post.Preview preview = showsCompactThumbnailBox(post)
+                                ? getBestPreviewForCompactThumbnail(previews) : getSuitablePreview(previews);
+                        if (preview != null) {
+                            intent.putExtra(ViewImageOrGifActivity.EXTRA_PREVIEW_URL_KEY, preview.getPreviewUrl());
+                        }
+                    }
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, post.getSubredditName()
                             + "-" + post.getId() + ".jpg");
                     intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, post.getTitle());
