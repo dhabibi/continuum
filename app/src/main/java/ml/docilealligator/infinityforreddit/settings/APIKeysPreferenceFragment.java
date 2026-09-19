@@ -160,6 +160,10 @@ public class APIKeysPreferenceFragment extends CustomFontPreferenceFragmentCompa
             Log.e(TAG, "Could not find Enable Overrides preference: " + SharedPreferencesUtils.ENABLE_API_KEY_OVERRIDES_PREF_KEY);
             return;
         }
+        enableOverridesPref.setOnPreferenceChangeListener((preference, newValue) -> {
+            markRestartPendingAndWarn();
+            return true;
+        });
         String summary = getString(R.string.settings_enable_api_key_overrides_summary);
         String highlight = "RedReader";
         int start = summary.lastIndexOf(highlight);
