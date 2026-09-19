@@ -563,7 +563,7 @@ public class SubscribedThingListingActivity extends BaseActivity
             Toast.makeText(this, R.string.import_subscriptions_loading, Toast.LENGTH_LONG).show();
             mExecutor.execute(() -> {
                 try {
-                    LocalSubscriptionImport.Result result = LocalSubscriptionImport.importNames(mRetrofit, mRedditDataRoomDatabase, names);
+                    LocalSubscriptionImport.Result result = LocalSubscriptionImport.importNames(mRedditDataRoomDatabase, names);
                     mHandler.post(() -> {
                         importingSubscriptions = false;
                         if (result.added > 0) {
@@ -573,10 +573,6 @@ public class SubscribedThingListingActivity extends BaseActivity
                             return;
                         }
                         String message = getString(R.string.import_subscriptions_result, result.added, result.existing);
-                        if (!result.unavailable.isEmpty()) {
-                            message += "\n\n" + getString(R.string.import_subscriptions_unavailable,
-                                    String.join(", ", result.unavailable));
-                        }
                         new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
                                 .setTitle(R.string.import_subscriptions)
                                 .setMessage(message)

@@ -66,3 +66,9 @@ buttons. Keep the personal-use flows direct and preserve the existing profile
 data, media performance and signing identity. The usage stop boundary remains.
 Daniel explicitly confirmed that both relevance and activity sorting must remain
 available in subreddit search.
+
+After v5, Daniel reported front-page subscription import failure and asked to
+replace the redundant Shadowbox-to-fullscreen-viewer flow with one TikTok-style
+screen matching his attached mockup: media fills the screen, compact right-side
+actions, bottom captions and seeking, and vertical post navigation throughout.
+Keep the existing sort choices, profile features and media performance.
