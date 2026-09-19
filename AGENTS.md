@@ -21,6 +21,9 @@ CI restores the persistent private key from Actions secret
 `CONTINUUM_DEBUG_KEYSTORE`. Its local backup is ignored
 `.signing/continuum-debug.p12`. Keep that key; never regenerate or publish it.
 Changing it prevents Android from accepting updates over an installed build.
+Use the `Proxy APK` workflow for distributable APKs: it restores this key before
+building. A default local debug build uses the machine's other debug key and is
+for compilation checks only; do not distribute it as an update.
 
 Use `.scratch/` for local evidence. The anonymous proxy must remain private to the
 tailnet, bound to loopback on the host, with Reddit-only media targets. Preserve

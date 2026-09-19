@@ -16,6 +16,17 @@ SDK 37.0. Local builds also need `cygnusx-1-org/subreddit-lists` cloned into
 `../subreddit-lists` to satisfy the upstream bundled-assets check. The workflow
 fetches a pinned copy. Debug APKs install alongside the standard Continuum app.
 
+Current personal builds are named **Continuum Proxy** and use package
+`org.cygnusx1.continuum.proxy` with a persistent signing key. They install beside
+the first Continuum Debug APK, whose temporary signing key was not retained.
+Carry settings/local multireddits across with **Settings → Backup and Restore**:
+Backup Settings in the old app, then Restore Settings in the new one.
+
+To import legacy combined links, open **Create Multireddit → Import link** and
+paste `https://reddit.com/r/a+b+c`, `/r/a+b+c`, `r/a+b+c`, or `a+b+c`.
+Names are deduplicated case-insensitively. Review the selection, give the
+multireddit a local name, and save. Anonymous imports use the existing local DB.
+
 Build the service from this directory:
 
 ```sh
