@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Menu;
@@ -21,6 +22,7 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -64,6 +66,7 @@ import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
 import ml.docilealligator.infinityforreddit.customviews.ThemedMaterialSwitch;
 import ml.docilealligator.infinityforreddit.databinding.ActivitySubscribedThingListingBinding;
 import ml.docilealligator.infinityforreddit.events.GoBackToMainPageEvent;
+import ml.docilealligator.infinityforreddit.events.ChangeAnonymousSubredditSubscriptionEvent;
 import ml.docilealligator.infinityforreddit.events.RefreshMultiRedditsEvent;
 import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent;
 import ml.docilealligator.infinityforreddit.fragments.FollowedMultiRedditListingFragment;
@@ -74,12 +77,14 @@ import ml.docilealligator.infinityforreddit.fragments.SubscribedSubredditsListin
 import ml.docilealligator.infinityforreddit.multireddit.DeleteMultiReddit;
 import ml.docilealligator.infinityforreddit.multireddit.FetchMyMultiReddits;
 import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
+import ml.docilealligator.infinityforreddit.multireddit.LegacyMultiredditLink;
 import ml.docilealligator.infinityforreddit.network.AnyAccountAccessTokenAuthenticator;
 import ml.docilealligator.infinityforreddit.resume.Restorable;
 import ml.docilealligator.infinityforreddit.resume.ResumeLaunchExtras;
 import ml.docilealligator.infinityforreddit.subreddit.ParseSubredditData;
 import ml.docilealligator.infinityforreddit.subreddit.SubredditData;
 import ml.docilealligator.infinityforreddit.subscribedsubreddit.SubscribedSubredditData;
+import ml.docilealligator.infinityforreddit.subscribedsubreddit.LocalSubscriptionImport;
 import ml.docilealligator.infinityforreddit.subscribeduser.SubscribedUserData;
 import ml.docilealligator.infinityforreddit.thing.FetchSubscribedThing;
 import ml.docilealligator.infinityforreddit.user.FetchUserData;
@@ -153,6 +158,7 @@ public class SubscribedThingListingActivity extends BaseActivity
     @Nullable
     private Menu mMenu;
     private ActivityResultLauncher<Intent> requestSearchThingLauncher;
+    private boolean importingSubscriptions;
     private ActivitySubscribedThingListingBinding binding;
     /** The tab a resume asked for, or -1. Applied once, as the pager is built. */
     private int resumeTab = -1;
@@ -451,6 +457,9 @@ public class SubscribedThingListingActivity extends BaseActivity
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.subscribed_thing_listing_activity, menu);
         mMenu = menu;
+        menu.findItem(R.id.action_import_subscriptions).setVisible(
+                Account.isAnonymous(accountName) && !isThingSelectionMode);
+        menu.findItem(R.id.action_find_subreddits).setVisible(!isThingSelectionMode);
         applyMenuItemTheme(menu);
 
         return true;
@@ -458,6 +467,18 @@ public class SubscribedThingListingActivity extends BaseActivity
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_find_subreddits) {
+            Intent intent = new Intent(this, SearchSubredditsResultActivity.class);
+            intent.putExtra(SearchSubredditsResultActivity.EXTRA_BROWSE, true);
+            startActivity(intent);
+            return true;
+        }
+        if (item.getItemId() == R.id.action_import_subscriptions) {
+            if (!importingSubscriptions) {
+                showSubscriptionImportDialog();
+            }
+            return true;
+        }
         if (item.getItemId() == R.id.action_search_subscribed_thing_listing_activity) {
             if (isThingSelectionMode) {
                 Intent intent = new Intent(this, SearchActivity.class);
@@ -504,6 +525,68 @@ public class SubscribedThingListingActivity extends BaseActivity
 
     private void applySearchQuery(String query) {
         sectionsPagerAdapter.changeSearchQuery(searchPrefixOnly ? query + "%" : "%" + query + "%");
+    }
+
+    private void showSubscriptionImportDialog() {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_edit_text, null);
+        EditText input = Objects.requireNonNull(dialogView.findViewById(R.id.edit_text_edit_text_dialog));
+        input.setHint(R.string.import_legacy_multireddit_hint);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setSingleLine(true);
+        input.setTextColor(mCustomThemeWrapper.getPrimaryTextColor());
+        input.setHintTextColor(mCustomThemeWrapper.getSecondaryTextColor());
+        if (typeface != null) {
+            input.setTypeface(typeface);
+        }
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                .setTitle(R.string.import_subscriptions)
+                .setMessage(R.string.import_subscriptions_message)
+                .setView(dialogView)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.import_legacy_multireddit_action, null)
+                .create();
+        dialog.setOnShowListener(ignored -> Objects.requireNonNull(dialog.getButton(AlertDialog.BUTTON_POSITIVE)).setOnClickListener(view -> {
+            List<String> names = LegacyMultiredditLink.parse(input.getText().toString());
+            if (names.isEmpty()) {
+                input.setError(getString(R.string.import_legacy_multireddit_invalid));
+                return;
+            }
+            dialog.dismiss();
+            importingSubscriptions = true;
+            Toast.makeText(this, R.string.import_subscriptions_loading, Toast.LENGTH_LONG).show();
+            mExecutor.execute(() -> {
+                try {
+                    LocalSubscriptionImport.Result result = LocalSubscriptionImport.importNames(mRetrofit, mRedditDataRoomDatabase, names);
+                    mHandler.post(() -> {
+                        importingSubscriptions = false;
+                        if (result.added > 0) {
+                            EventBus.getDefault().post(new ChangeAnonymousSubredditSubscriptionEvent());
+                        }
+                        if (isFinishing() || isDestroyed()) {
+                            return;
+                        }
+                        String message = getString(R.string.import_subscriptions_result, result.added, result.existing);
+                        if (!result.unavailable.isEmpty()) {
+                            message += "\n\n" + getString(R.string.import_subscriptions_unavailable,
+                                    String.join(", ", result.unavailable));
+                        }
+                        new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                                .setTitle(R.string.import_subscriptions)
+                                .setMessage(message)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show();
+                    });
+                } catch (Exception e) {
+                    mHandler.post(() -> {
+                        importingSubscriptions = false;
+                        if (!isFinishing() && !isDestroyed()) {
+                            Toast.makeText(this, R.string.import_subscriptions_failed, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            });
+        }));
+        dialog.show();
     }
 
     @Override

@@ -20,12 +20,32 @@
             app:popupTheme="@style/AppTheme.PopupOverlay"
             app:navigationIcon="?attr/homeAsUpIndicator" />
 
+        <androidx.appcompat.widget.SearchView
+            android:id="@+id/search_view_subreddits"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:imeOptions="actionSearch|flagNoPersonalizedLearning"
+            android:visibility="gone"
+            app:iconifiedByDefault="false"
+            app:queryHint="@string/find_subreddits_hint" />
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/frame_layout_search_subreddits_result_activity"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+    <TextView
+        android:id="@+id/search_help_subreddits"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp"
+        android:text="@string/find_subreddits_help"
+        android:textSize="?attr/font_default"
+        android:fontFamily="?attr/font_family"
+        android:visibility="gone"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

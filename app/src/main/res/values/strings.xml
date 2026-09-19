@@ -972,6 +972,18 @@
     </plurals>
     <string name="multireddit_selection_count">Subreddits and users (%1$d)</string>
 
+    <string name="import_subscriptions">Import subscriptions</string>
+    <string name="import_subscriptions_message">Paste a Reddit /r/a+b+c link to add communities to your local Home feed. Existing subscriptions and favorites are kept.</string>
+    <string name="import_subscriptions_loading">Importing subscriptions…</string>
+    <string name="import_subscriptions_result">Added: %1$d\nAlready subscribed: %2$d</string>
+    <string name="import_subscriptions_unavailable">Could not find these communities: %1$s</string>
+    <string name="import_subscriptions_failed">Could not import subscriptions. Your lists are unchanged. Check your connection and try again.</string>
+    <string name="find_subreddits">Find subreddits</string>
+    <string name="find_subreddits_hint">Search by name or topic</string>
+    <string name="find_subreddits_help">Search for a community, then tap a result to open it or use its subscribe button to add it to Home.</string>
+    <string name="manage_multireddits">Manage multireddits</string>
+    <string name="multireddits_expanded">Expanded</string>
+    <string name="multireddits_collapsed">Collapsed</string>
     <string name="settings_category_media_title">Media</string>
     <string name="settings_category_gesture_sensitivity_title">Gesture Sensitivity</string>
     <string name="settings_tab_switching_sensitivity">Tab Switching Sensitivity</string>

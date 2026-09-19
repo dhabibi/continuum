@@ -10,6 +10,7 @@ import java.util.List;
 import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
+import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
 import ml.docilealligator.infinityforreddit.subscribedsubreddit.SubscribedSubredditData;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 
@@ -48,7 +49,7 @@ public class NavigationDrawerRecyclerViewMergedAdapter {
                     }
                 });
         accountSectionRecyclerViewAdapter = new AccountSectionRecyclerViewAdapter(baseActivity, customThemeWrapper,
-                navigationDrawerSharedPreferences, !accountName.equals(Account.ANONYMOUS_ACCOUNT),
+                navigationDrawerSharedPreferences, accountName,
                 showRecentlyVisited, itemClickListener);
         redditSectionRecyclerViewAdapter = new RedditSectionRecyclerViewAdapter(baseActivity, customThemeWrapper,
                 navigationDrawerSharedPreferences, itemClickListener);
@@ -139,6 +140,10 @@ public class NavigationDrawerRecyclerViewMergedAdapter {
         accountSectionRecyclerViewAdapter.setInboxCount(inboxCount);
     }
 
+    public void setMultiReddits(List<MultiReddit> multiReddits) {
+        accountSectionRecyclerViewAdapter.setMultiReddits(multiReddits);
+    }
+
     public void setNSFWEnabled(boolean isNSFWEnabled) {
         preferenceSectionRecyclerViewAdapter.setNSFWEnabled(isNSFWEnabled);
     }
@@ -189,6 +194,7 @@ public class NavigationDrawerRecyclerViewMergedAdapter {
         void onMenuClick(int stringId);
         void onMenuLongClick(int stringId);
         void onSubscribedSubredditClick(String subredditName);
+        void onMultiRedditClick(MultiReddit multiReddit);
         void onAccountClick(@NonNull String accountName);
         void onAccountLongClick(@NonNull String accountName);
     }

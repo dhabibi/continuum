@@ -1079,6 +1079,9 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                             intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, accountName);
                         } else if (stringId == R.string.subscriptions) {
                             intent = new Intent(MainActivity.this, SubscribedThingListingActivity.class);
+                        } else if (stringId == R.string.find_subreddits) {
+                            intent = new Intent(MainActivity.this, SearchSubredditsResultActivity.class);
+                            intent.putExtra(SearchSubredditsResultActivity.EXTRA_BROWSE, true);
                         } else if (stringId == R.string.multi_reddit) {
                             intent = new Intent(MainActivity.this, SubscribedThingListingActivity.class);
                             intent.putExtra(SubscribedThingListingActivity.EXTRA_SHOW_MULTIREDDITS, true);
@@ -1204,6 +1207,14 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                         Intent intent = new Intent(MainActivity.this, ViewSubredditDetailActivity.class);
                         intent.putExtra(ViewSubredditDetailActivity.EXTRA_SUBREDDIT_NAME_KEY, subredditName);
                         startActivity(intent);
+                    }
+
+                    @Override
+                    public void onMultiRedditClick(MultiReddit multiReddit) {
+                        Intent intent = new Intent(MainActivity.this, ViewMultiRedditDetailActivity.class);
+                        intent.putExtra(ViewMultiRedditDetailActivity.EXTRA_MULTIREDDIT_DATA, multiReddit);
+                        startActivity(intent);
+                        binding.drawerLayout.closeDrawers();
                     }
 
                     @Override
@@ -1343,6 +1354,9 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
         });
 
         multiRedditViewModel.getAllMultiReddits().observe(this, multiReddits -> {
+            if (adapter != null) {
+                adapter.setMultiReddits(multiReddits);
+            }
             if (mShowMultiReddits && sectionsPagerAdapter != null) {
                 sectionsPagerAdapter.setMultiReddits(excludeFavoriteMultiReddits(multiReddits));
             }

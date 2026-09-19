@@ -12,6 +12,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.SearchView;
 import androidx.core.graphics.Insets;
 import androidx.core.view.OnApplyWindowInsetsListener;
 import androidx.core.view.ViewCompat;
@@ -37,10 +38,14 @@ public class SearchSubredditsResultActivity extends BaseActivity implements Acti
     static final String EXTRA_QUERY = "EQ";
     static final String EXTRA_IS_MULTI_SELECTION = "EIMS";
     static final String RETURN_EXTRA_SELECTED_SUBREDDITS = "RESS";
+    public static final String EXTRA_BROWSE = "EB";
 
     private static final String FRAGMENT_OUT_STATE = "FOS";
+    private static final String QUERY_STATE = "QS";
 
+    @Nullable
     Fragment mFragment;
+    private String query = "";
     @Inject
     @Named("default")
     SharedPreferences mSharedPreferences;
@@ -105,21 +110,61 @@ public class SearchSubredditsResultActivity extends BaseActivity implements Acti
         Objects.requireNonNull(getSupportActionBar()).setDisplayHomeAsUpEnabled(true);
         setToolbarGoToTop(binding.toolbarSearchSubredditsResultActivity);
 
-        String query = getIntent().getStringExtra(EXTRA_QUERY);
-
-        Fragment fragment = savedInstanceState == null
+        boolean browse = getIntent().getBooleanExtra(EXTRA_BROWSE, false);
+        query = Objects.requireNonNullElse(savedInstanceState == null
+                ? getIntent().getStringExtra(EXTRA_QUERY) : savedInstanceState.getString(QUERY_STATE), "");
+        mFragment = savedInstanceState == null || !savedInstanceState.containsKey(FRAGMENT_OUT_STATE)
                 ? null
                 : getSupportFragmentManager().getFragment(savedInstanceState, FRAGMENT_OUT_STATE);
-        if (fragment == null) {
-            SubredditListingFragment subredditListingFragment = new SubredditListingFragment();
-            Bundle bundle = new Bundle();
-            bundle.putString(SubredditListingFragment.EXTRA_QUERY, query);
-            bundle.putBoolean(SubredditListingFragment.EXTRA_IS_GETTING_SUBREDDIT_INFO, true);
-            bundle.putBoolean(SubredditListingFragment.EXTRA_IS_MULTI_SELECTION, getIntent().getBooleanExtra(EXTRA_IS_MULTI_SELECTION, false));
-            subredditListingFragment.setArguments(bundle);
-            fragment = subredditListingFragment;
+        if (browse) {
+            setTitle(R.string.find_subreddits);
+            binding.searchViewSubreddits.setVisibility(View.VISIBLE);
+            SearchView.SearchAutoComplete input = binding.searchViewSubreddits.findViewById(androidx.appcompat.R.id.search_src_text);
+            if (input != null) {
+                input.setTextColor(mCustomThemeWrapper.getPrimaryTextColor());
+                input.setHintTextColor(mCustomThemeWrapper.getSecondaryTextColor());
+                if (typeface != null) {
+                    input.setTypeface(typeface);
+                }
+            }
+            binding.searchHelpSubreddits.setTextColor(mCustomThemeWrapper.getSecondaryTextColor());
+            binding.searchHelpSubreddits.setVisibility(mFragment == null && query.isEmpty() ? View.VISIBLE : View.GONE);
+            binding.searchViewSubreddits.setQuery(query, false);
+            binding.searchViewSubreddits.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+                @Override
+                public boolean onQueryTextSubmit(String text) {
+                    String next = text.trim();
+                    if (!next.isEmpty() && (!next.equals(query) || mFragment == null)) {
+                        query = next;
+                        showResults();
+                    }
+                    binding.searchViewSubreddits.clearFocus();
+                    Utils.hideKeyboard(SearchSubredditsResultActivity.this);
+                    return true;
+                }
+
+                @Override
+                public boolean onQueryTextChange(String text) {
+                    return false;
+                }
+            });
         }
+        if (mFragment == null && (!browse || !query.isEmpty())) {
+            showResults();
+        }
+    }
+
+    private void showResults() {
+        SubredditListingFragment fragment = new SubredditListingFragment();
+        Bundle bundle = new Bundle();
+        bundle.putString(SubredditListingFragment.EXTRA_QUERY, query);
+        bundle.putBoolean(SubredditListingFragment.EXTRA_IS_GETTING_SUBREDDIT_INFO,
+                !getIntent().getBooleanExtra(EXTRA_BROWSE, false));
+        bundle.putBoolean(SubredditListingFragment.EXTRA_IS_MULTI_SELECTION,
+                getIntent().getBooleanExtra(EXTRA_IS_MULTI_SELECTION, false));
+        fragment.setArguments(bundle);
         mFragment = fragment;
+        binding.searchHelpSubreddits.setVisibility(View.GONE);
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.frame_layout_search_subreddits_result_activity, fragment)
                 .commit();
@@ -175,7 +220,10 @@ public class SearchSubredditsResultActivity extends BaseActivity implements Acti
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-        getSupportFragmentManager().putFragment(outState, FRAGMENT_OUT_STATE, mFragment);
+        outState.putString(QUERY_STATE, query);
+        if (mFragment != null && mFragment.isAdded()) {
+            getSupportFragmentManager().putFragment(outState, FRAGMENT_OUT_STATE, mFragment);
+        }
     }
 
     @Override

@@ -16,10 +16,19 @@
 
     <TextView
         android:id="@+id/text_view_item_nav_drawer_menu_item"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
+        android:layout_weight="1"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:textSize="?attr/font_default"
         android:fontFamily="?attr/font_family" />
+
+    <ImageView
+        android:id="@+id/expand_indicator_item_nav_drawer_menu_item"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="center_vertical"
+        android:visibility="gone"
+        android:contentDescription="@null" />
 
 </LinearLayout>
