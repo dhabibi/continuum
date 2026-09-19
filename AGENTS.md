@@ -11,6 +11,8 @@ habibilabs at `/srv/hermes/repos/reddit-proxy`, owned by hermes. Use the configu
 SSH alias. Deployment secrets and endpoint configuration stay outside Git.
 
 Build Android with `./gradlew :app:assembleDebug --no-daemon --max-workers=2`.
+The upstream assets require cygnusx-1-org/subreddit-lists cloned into the sibling
+`../subreddit-lists` directory. The CI workflow pins that dependency's commit.
 The manual `Proxy APK` GitHub workflow installs the matching JDK/Android SDK.
 Check proxy behavior with `python -m unittest discover -s deploy/reddit-proxy`.
 Keep checks focused on changed behavior; preserve upstream build standards.

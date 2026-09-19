@@ -20,6 +20,11 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch bundled subreddit lists
+        run: |
+          git init ../subreddit-lists
+          git -C ../subreddit-lists fetch --depth=1 https://github.com/cygnusx-1-org/subreddit-lists.git 8915d331f98ed653f7e4feb2b2769651286e8980
+          git -C ../subreddit-lists checkout --detach FETCH_HEAD
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -32,8 +37,15 @@ jobs:
       - name: Install Android SDK
         run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - name: Build installable debug APKs
         run: ./gradlew :app:assembleDebug --no-daemon --max-workers=2
+      - name: Verify APK signatures
+        run: |
+          for apk in app/build/outputs/apk/debug/*.apk; do
+            "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$apk"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: continuum-vps-proxy

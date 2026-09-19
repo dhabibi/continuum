@@ -12,7 +12,9 @@ embedded media; the actual media fetch still goes through the proxy.
 
 Build the app with the `Proxy APK` workflow in this fork, or run
 `./gradlew :app:assembleDebug --no-daemon --max-workers=2` with JDK 25 and Android
-SDK 37. Debug APKs install alongside the standard Continuum app.
+SDK 37.0. Local builds also need `cygnusx-1-org/subreddit-lists` cloned into
+`../subreddit-lists` to satisfy the upstream bundled-assets check. The workflow
+fetches a pinned copy. Debug APKs install alongside the standard Continuum app.
 
 Build the service from this directory:
 

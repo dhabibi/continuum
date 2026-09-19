@@ -8,8 +8,8 @@ import ml.docilealligator.infinityforreddit.apimonitor.ApiMonitorEventListener
 import ml.docilealligator.infinityforreddit.network.RedditMediaProxyInterceptor
 import ml.docilealligator.infinityforreddit.utils.APIUtils
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils
-import okhttp3.OkHttpClient
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
 
 /**
  * The one OkHttpClient every Glide image load is supposed to go through: app timeouts, the app's
