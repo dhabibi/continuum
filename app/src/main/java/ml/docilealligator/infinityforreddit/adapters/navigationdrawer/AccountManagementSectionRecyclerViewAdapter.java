@@ -74,15 +74,12 @@ public class AccountManagementSectionRecyclerViewAdapter extends RecyclerView.Ad
 
             int offset = position - accounts.size();
             if (offset == 0) {
-                stringId = R.string.local_accounts;
-                drawableId = R.drawable.ic_anonymous_day_night_24dp;
-            } else if (offset == 1) {
                 stringId = R.string.add_account;
                 drawableId = R.drawable.ic_add_circle_outline_day_night_24dp;
-            } else if (offset == 2) {
+            } else if (offset == 1) {
                 stringId = R.string.anonymous_account;
                 drawableId = R.drawable.ic_anonymous_day_night_24dp;
-            } else if (offset == 3) {
+            } else if (offset == 2) {
                 stringId = R.string.log_out;
                 drawableId = R.drawable.ic_log_out_day_night_24dp;
             }
@@ -102,7 +99,7 @@ public class AccountManagementSectionRecyclerViewAdapter extends RecyclerView.Ad
 
     @Override
     public int getItemCount() {
-        return accounts.size() + (isLoggedIn ? 4 : 2);
+        return accounts.size() + (isLoggedIn ? 3 : 1);
     }
 
     public void changeAccountsDataset(List<Account> accounts) {

@@ -6,7 +6,6 @@ import android.widget.EditText;
 import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import java.util.List;
 import java.util.Objects;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
@@ -16,30 +15,19 @@ import ml.docilealligator.infinityforreddit.utils.AppRestartHelper;
 public final class LocalProfilesDialog {
     private LocalProfilesDialog() {}
 
-    public static void show(BaseActivity activity) {
+    public static void showCreate(BaseActivity activity) {
+        showNameDialog(activity, true);
+    }
+
+    public static void showRenameCurrent(BaseActivity activity) {
+        showNameDialog(activity, false);
+    }
+
+    public static void switchTo(BaseActivity activity, String id) {
         LocalProfiles profiles = LocalProfiles.get(activity);
-        List<LocalProfiles.Profile> entries = profiles.getProfiles();
-        String[] names = new String[entries.size()];
-        int selected = 0;
-        for (int i = 0; i < entries.size(); i++) {
-            names[i] = entries.get(i).name;
-            if (entries.get(i).id.equals(profiles.getCurrentId())) {
-                selected = i;
-            }
+        if (!id.equals(profiles.getCurrentId())) {
+            switchTo(activity, profiles, id);
         }
-        new MaterialAlertDialogBuilder(activity, R.style.MaterialAlertDialogTheme)
-                .setTitle(R.string.local_accounts)
-                .setSingleChoiceItems(names, selected, (dialog, which) -> {
-                    String id = entries.get(which).id;
-                    dialog.dismiss();
-                    if (!id.equals(profiles.getCurrentId())) {
-                        switchTo(activity, profiles, id);
-                    }
-                })
-                .setPositiveButton(R.string.local_account_new, (dialog, which) -> showNameDialog(activity, true))
-                .setNeutralButton(R.string.local_account_rename, (dialog, which) -> showNameDialog(activity, false))
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
     }
 
     private static void showNameDialog(BaseActivity activity, boolean create) {

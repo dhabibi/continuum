@@ -57,3 +57,10 @@ unfinished requests at that boundary. The APK build/push hold still applies.
 Daniel subsequently requested "Build the apk", lifting that hold for the combined
 image and five-feature release. Build and deliver an update signed with the
 preserved key, using the existing private VPS download location.
+
+After v4, Daniel requested easy moves of multireddits between local profiles,
+direct profile buttons in the sidebar instead of a popup switcher, TikTok-style
+Shadowbox playback with autoplay/seeking/volume controls, and richer subreddit
+discovery with concise descriptions, most-active sorting and add-to-multireddit
+buttons. Keep the personal-use flows direct and preserve the existing profile
+data, media performance and signing identity. The usage stop boundary remains.

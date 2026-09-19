@@ -985,6 +985,15 @@
     <string name="multireddits_expanded">Expanded</string>
     <string name="multireddits_collapsed">Collapsed</string>
     <string name="local_accounts">Local accounts</string>
+    <string name="move_local_multireddits">Move multireddits</string>
+    <string name="move_multireddits_next">Next</string>
+    <string name="move_to_local_account">Move to local account</string>
+    <string name="no_local_multireddits_to_move">No local multireddits to move.</string>
+    <string name="create_local_account_before_move">Create another local account in the sidebar first.</string>
+    <string name="local_multireddits_moved">Moved %1$d multireddits to %2$s.</string>
+    <string name="local_multireddits_renamed">Names already in use were kept as: %1$s</string>
+    <string name="local_multireddits_move_failed">The move could not finish. Originals were kept; the destination may contain a copy.</string>
+    <string name="local_account_active">Current account. Long press to rename.</string>
     <string name="local_account_default">Default</string>
     <string name="local_account_new">New local account</string>
     <string name="local_account_rename">Rename current</string>

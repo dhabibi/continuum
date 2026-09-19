@@ -66,6 +66,7 @@ public class NavigationDrawerRecyclerViewMergedAdapter {
 
         mainPageConcatAdapter = new ConcatAdapter(
                 headerSectionRecyclerViewAdapter,
+                new LocalProfilesSectionRecyclerViewAdapter(baseActivity),
                 accountSectionRecyclerViewAdapter,
                 redditSectionRecyclerViewAdapter,
                 postSectionRecyclerViewAdapter,
@@ -195,6 +196,7 @@ public class NavigationDrawerRecyclerViewMergedAdapter {
         void onMenuLongClick(int stringId);
         void onSubscribedSubredditClick(String subredditName);
         void onMultiRedditClick(MultiReddit multiReddit);
+        void onMultiRedditLongClick(MultiReddit multiReddit);
         void onAccountClick(@NonNull String accountName);
         void onAccountLongClick(@NonNull String accountName);
     }

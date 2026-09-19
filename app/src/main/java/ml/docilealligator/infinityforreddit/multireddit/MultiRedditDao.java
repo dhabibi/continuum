@@ -21,6 +21,10 @@ public interface MultiRedditDao {
     @Query("SELECT * FROM multi_reddits WHERE username = :username AND is_followed = 0 ORDER BY name COLLATE NOCASE ASC")
     List<MultiReddit> getAllMultiRedditsList(String username);
 
+    @Query("SELECT EXISTS(SELECT 1 FROM multi_reddits WHERE username = '.anonymous' "
+            + "AND (name = :name COLLATE NOCASE OR display_name = :displayName COLLATE NOCASE))")
+    boolean hasLocalName(String name, String displayName);
+
     @Query("SELECT * FROM multi_reddits WHERE username = :username AND is_followed = :followed AND is_favorite AND display_name LIKE :searchQuery ORDER BY name COLLATE NOCASE ASC")
     LiveData<List<MultiReddit>> getAllFavoriteMultiRedditsWithSearchQuery(String username, boolean followed, String searchQuery);
 

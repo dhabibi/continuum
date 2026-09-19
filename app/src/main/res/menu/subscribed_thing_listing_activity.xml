@@ -2,6 +2,11 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_move_local_multireddits"
+        android:orderInCategory="4"
+        android:title="@string/move_local_multireddits"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_find_subreddits"
         android:orderInCategory="3"
         android:title="@string/find_subreddits"

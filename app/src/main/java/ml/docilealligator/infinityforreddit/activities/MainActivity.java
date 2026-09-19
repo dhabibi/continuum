@@ -79,7 +79,6 @@ import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.RecyclerViewContentScrollingInterface;
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
-import ml.docilealligator.infinityforreddit.account.LocalProfilesDialog;
 import ml.docilealligator.infinityforreddit.account.AccountScope;
 import ml.docilealligator.infinityforreddit.account.AccountViewModel;
 import ml.docilealligator.infinityforreddit.adapters.SubredditAutocompleteRecyclerViewAdapter;
@@ -117,6 +116,7 @@ import ml.docilealligator.infinityforreddit.message.InboxCount;
 import ml.docilealligator.infinityforreddit.message.ReadMessage;
 import ml.docilealligator.infinityforreddit.multireddit.FetchMyMultiReddits;
 import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
+import ml.docilealligator.infinityforreddit.multireddit.LocalMultiredditMoveDialog;
 import ml.docilealligator.infinityforreddit.multireddit.MultiRedditViewModel;
 import ml.docilealligator.infinityforreddit.post.MarkPostAsReadInterface;
 import ml.docilealligator.infinityforreddit.post.Post;
@@ -1080,8 +1080,6 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                             intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, accountName);
                         } else if (stringId == R.string.subscriptions) {
                             intent = new Intent(MainActivity.this, SubscribedThingListingActivity.class);
-                        } else if (stringId == R.string.local_accounts) {
-                            LocalProfilesDialog.show(MainActivity.this);
                         } else if (stringId == R.string.find_subreddits) {
                             intent = new Intent(MainActivity.this, SearchSubredditsResultActivity.class);
                             intent.putExtra(SearchSubredditsResultActivity.EXTRA_BROWSE, true);
@@ -1218,6 +1216,12 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                         intent.putExtra(ViewMultiRedditDetailActivity.EXTRA_MULTIREDDIT_DATA, multiReddit);
                         startActivity(intent);
                         binding.drawerLayout.closeDrawers();
+                    }
+
+                    @Override
+                    public void onMultiRedditLongClick(MultiReddit multiReddit) {
+                        LocalMultiredditMoveDialog.showDestination(MainActivity.this, mExecutor,
+                                mRedditDataRoomDatabase, java.util.Collections.singletonList(multiReddit));
                     }
 
                     @Override

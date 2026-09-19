@@ -77,6 +77,7 @@ import ml.docilealligator.infinityforreddit.fragments.SubscribedSubredditsListin
 import ml.docilealligator.infinityforreddit.multireddit.DeleteMultiReddit;
 import ml.docilealligator.infinityforreddit.multireddit.FetchMyMultiReddits;
 import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
+import ml.docilealligator.infinityforreddit.multireddit.LocalMultiredditMoveDialog;
 import ml.docilealligator.infinityforreddit.multireddit.LegacyMultiredditLink;
 import ml.docilealligator.infinityforreddit.network.AnyAccountAccessTokenAuthenticator;
 import ml.docilealligator.infinityforreddit.resume.Restorable;
@@ -459,6 +460,8 @@ public class SubscribedThingListingActivity extends BaseActivity
         mMenu = menu;
         menu.findItem(R.id.action_import_subscriptions).setVisible(
                 Account.isAnonymous(accountName) && !isThingSelectionMode);
+        menu.findItem(R.id.action_move_local_multireddits).setVisible(
+                Account.isAnonymous(accountName) && !isThingSelectionMode);
         menu.findItem(R.id.action_find_subreddits).setVisible(!isThingSelectionMode);
         applyMenuItemTheme(menu);
 
@@ -467,6 +470,10 @@ public class SubscribedThingListingActivity extends BaseActivity
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_move_local_multireddits) {
+            LocalMultiredditMoveDialog.showAll(this, mExecutor, mRedditDataRoomDatabase);
+            return true;
+        }
         if (item.getItemId() == R.id.action_find_subreddits) {
             Intent intent = new Intent(this, SearchSubredditsResultActivity.class);
             intent.putExtra(SearchSubredditsResultActivity.EXTRA_BROWSE, true);
@@ -742,6 +749,11 @@ public class SubscribedThingListingActivity extends BaseActivity
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .show();
+    }
+
+    public void moveLocalMultiReddit(MultiReddit multiReddit) {
+        LocalMultiredditMoveDialog.showDestination(this, mExecutor, mRedditDataRoomDatabase,
+                java.util.Collections.singletonList(multiReddit));
     }
 
     private void showGoToSubredditDialog() {

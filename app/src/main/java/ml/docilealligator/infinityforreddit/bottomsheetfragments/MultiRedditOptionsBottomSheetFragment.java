@@ -13,6 +13,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import ml.docilealligator.infinityforreddit.R;
+import ml.docilealligator.infinityforreddit.account.Account;
 import ml.docilealligator.infinityforreddit.activities.EditMultiRedditActivity;
 import ml.docilealligator.infinityforreddit.activities.SubscribedThingListingActivity;
 import ml.docilealligator.infinityforreddit.customviews.LandscapeExpandedRoundedBottomSheetDialogFragment;
@@ -39,6 +40,13 @@ public class MultiRedditOptionsBottomSheetFragment extends LandscapeExpandedRoun
         FragmentMultiRedditOptionsBottomSheetBinding binding = FragmentMultiRedditOptionsBottomSheetBinding.inflate(inflater, container, false);
 
         MultiReddit multiReddit = getArguments().getParcelable(EXTRA_MULTI_REDDIT);
+
+        binding.moveLocalMultireddit.setVisibility(Account.isAnonymous(subscribedThingListingActivity.accountName)
+                && multiReddit != null && !multiReddit.isFollowed() ? View.VISIBLE : View.GONE);
+        binding.moveLocalMultireddit.setOnClickListener(view -> {
+            if (multiReddit != null) subscribedThingListingActivity.moveLocalMultiReddit(multiReddit);
+            dismiss();
+        });
 
         binding.copyMultiRedditPathTextViewMultiRedditOptionsBottomSheetFragment.setOnClickListener(view -> {
             if (multiReddit != null) {
