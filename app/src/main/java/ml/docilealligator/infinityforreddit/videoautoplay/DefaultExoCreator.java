@@ -61,6 +61,7 @@ public class DefaultExoCreator implements ExoCreator, MediaSourceEventListener {
     private final RenderersFactory renderersFactory;  // stateless
     private final DataSource.Factory mediaDataSourceFactory;  // stateless
     private final DataSource.Factory manifestDataSourceFactory; // stateless
+    private final DataSource.Factory upstreamDataSourceFactory;
 
     public DefaultExoCreator(@NonNull ToroExo toro, @NonNull Config config) {
         this.toro = checkNotNull(toro);
@@ -75,11 +76,12 @@ public class DefaultExoCreator implements ExoCreator, MediaSourceEventListener {
         if (baseFactory == null) {
             baseFactory = new DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent(APIUtils.USER_AGENT);
         }
+        upstreamDataSourceFactory = baseFactory;
         DataSource.Factory factory = new DefaultDataSource.Factory(this.toro.context, baseFactory);
         if (config.cache != null)
             factory = new CacheDataSource.Factory().setCache(config.cache).setUpstreamDataSourceFactory(baseFactory);
         mediaDataSourceFactory = factory;
-        manifestDataSourceFactory = new DefaultDataSource.Factory(this.toro.context);
+        manifestDataSourceFactory = factory;
     }
 
     public DefaultExoCreator(Context context, Config config) {
@@ -123,7 +125,14 @@ public class DefaultExoCreator implements ExoCreator, MediaSourceEventListener {
         // Create a new TrackSelector for each player instance - they cannot be reused in media3
         TrackSelector trackSelector = new DefaultTrackSelector(toro.context);
         return new ToroExoPlayer(toro.context, renderersFactory, trackSelector, new DefaultLoadControl(),
-                new DefaultBandwidthMeter.Builder(toro.context).build(), Util.getCurrentOrMainLooper()).getPlayer();
+                DefaultBandwidthMeter.getSingletonInstance(toro.context), Util.getCurrentOrMainLooper()).getPlayer();
+    }
+
+    @Nullable
+    @Override
+    public NextClipPreloader createPreloader() {
+        return config.cache == null ? null
+                : new NextClipPreloader(toro.context, config.cache, upstreamDataSourceFactory);
     }
 
     @NonNull

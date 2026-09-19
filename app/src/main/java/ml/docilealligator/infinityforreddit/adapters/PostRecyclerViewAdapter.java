@@ -70,6 +70,8 @@ import com.libRG.CustomTextView;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -160,7 +162,9 @@ import ml.docilealligator.infinityforreddit.utils.Utils;
 import ml.docilealligator.infinityforreddit.videoautoplay.CacheManager;
 import ml.docilealligator.infinityforreddit.videoautoplay.ExoCreator;
 import ml.docilealligator.infinityforreddit.videoautoplay.ExoPlayerViewHelper;
+import ml.docilealligator.infinityforreddit.videoautoplay.InlineGifVideoPlayer;
 import ml.docilealligator.infinityforreddit.videoautoplay.MultiPlayPlayerSelector;
+import ml.docilealligator.infinityforreddit.videoautoplay.NextClipPreloader;
 import ml.docilealligator.infinityforreddit.videoautoplay.Playable;
 import ml.docilealligator.infinityforreddit.videoautoplay.PlayerSelector;
 import ml.docilealligator.infinityforreddit.videoautoplay.ToroPlayer;
@@ -328,6 +332,11 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     private ExoCreator mExoCreator;
     private Callback mCallback;
     private boolean canPlayVideo = true;
+    private final Map<ImageView, InlineGifVideoPlayer> inlineGifPlayers = new IdentityHashMap<>();
+    private final android.util.LruCache<String, Boolean> failedGifMp4s = new android.util.LruCache<>(32);
+    @Nullable
+    private NextClipPreloader nextClipPreloader;
+    private boolean mediaScrollingUp;
     private RecyclerView.RecycledViewPool mGalleryRecycledViewPool;
     private MultiPlayPlayerSelector multiPlayPlayerSelector;
     private int itemWidth;
@@ -826,6 +835,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     @OptIn(markerClass = UnstableApi.class)
     @Override
     public void onBindViewHolder(@NonNull final RecyclerView.ViewHolder holder, int position) {
+        releaseInlineGif(holder);
+        scheduleNextClipPreload();
         if (holder instanceof PostViewHolder) {
             Post post = getItem(position);
             if (post == null) {
@@ -2119,9 +2130,17 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
      */
     private final RecyclerView.OnScrollListener gifAutoplayScrollListener = new RecyclerView.OnScrollListener() {
         @Override
+        public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+            if (dy != 0) mediaScrollingUp = dy < 0;
+        }
+
+        @Override
         public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
             if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                 updateAnimatedGifs(recyclerView);
+                scheduleNextClipPreload();
+            } else {
+                stopNextClipPreload();
             }
         }
     };
@@ -2140,6 +2159,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         super.onAttachedToRecyclerView(recyclerView);
         attachedRecyclerView = recyclerView;
         recyclerView.addOnScrollListener(gifAutoplayScrollListener);
+        scheduleNextClipPreload();
     }
 
     @Override
@@ -2147,7 +2167,116 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         super.onDetachedFromRecyclerView(recyclerView);
         recyclerView.removeOnScrollListener(gifAutoplayScrollListener);
         recyclerView.removeCallbacks(gifAutoplayUpdate);
+        stopNextClipPreload();
+        for (InlineGifVideoPlayer player : inlineGifPlayers.values()) player.release();
+        inlineGifPlayers.clear();
         attachedRecyclerView = null;
+    }
+
+    @Override
+    public void onViewAttachedToWindow(@NonNull RecyclerView.ViewHolder holder) {
+        super.onViewAttachedToWindow(holder);
+        scheduleGifAutoplayUpdate();
+    }
+
+    @Override
+    public void onViewDetachedFromWindow(@NonNull RecyclerView.ViewHolder holder) {
+        if (gifMediaView(holder) != null) setGifAnimating(holder, false);
+        releaseInlineGif(holder);
+        super.onViewDetachedFromWindow(holder);
+    }
+
+    @Nullable
+    private ImageView gifImageView(RecyclerView.ViewHolder holder) {
+        if (holder instanceof PostWithPreviewTypeViewHolder) {
+            return ((PostWithPreviewTypeViewHolder) holder).imageView;
+        }
+        if (holder instanceof PostGalleryViewHolder) {
+            return ((PostGalleryViewHolder) holder).binding.imageViewItemPostGallery;
+        }
+        return null;
+    }
+
+    private void releaseInlineGif(RecyclerView.ViewHolder holder) {
+        ImageView image = gifImageView(holder);
+        if (image != null) {
+            InlineGifVideoPlayer player = inlineGifPlayers.remove(image);
+            if (player != null) player.release();
+        }
+        if (holder instanceof PostWithPreviewTypeViewHolder) {
+            ((PostWithPreviewTypeViewHolder) holder).animatingGif = false;
+        } else if (holder instanceof PostGalleryViewHolder) {
+            ((PostGalleryViewHolder) holder).animatingGif = false;
+        }
+    }
+
+    private final Runnable nextClipPreload = this::preloadNextClip;
+
+    private void scheduleNextClipPreload() {
+        if (attachedRecyclerView == null) return;
+        attachedRecyclerView.removeCallbacks(nextClipPreload);
+        if (canPlayVideo && mAutoplay && !mDataSavingMode) {
+            attachedRecyclerView.postDelayed(nextClipPreload, 600);
+        }
+    }
+
+    private void stopNextClipPreload() {
+        if (attachedRecyclerView != null) attachedRecyclerView.removeCallbacks(nextClipPreload);
+        if (nextClipPreloader != null) nextClipPreloader.stop();
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private void preloadNextClip() {
+        RecyclerView view = attachedRecyclerView;
+        if (view == null || !canPlayVideo || !mAutoplay || mDataSavingMode
+                || !view.hasWindowFocus() || !view.getGlobalVisibleRect(new android.graphics.Rect())
+                || view.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
+            stopNextClipPreload();
+            return;
+        }
+        RecyclerView.LayoutManager layout = view.getLayoutManager();
+        if (layout == null) return;
+        int first = Integer.MAX_VALUE;
+        int last = -1;
+        for (int i = 0; i < layout.getChildCount(); i++) {
+            View child = layout.getChildAt(i);
+            if (child == null || !child.getGlobalVisibleRect(new android.graphics.Rect())) continue;
+            RecyclerView.ViewHolder holder = view.getChildViewHolder(child);
+            int position = holder.getBindingAdapterPosition();
+            if (position < 0 || position >= getItemCount()) continue;
+            first = Math.min(first, position);
+            last = Math.max(last, position);
+            // Current playback gets the connection first. Its ready event schedules another pass.
+            if (holder instanceof PostBaseVideoAutoplayViewHolder) {
+                ExoPlayerViewHelper helper = ((PostBaseVideoAutoplayViewHolder) holder).helper;
+                Player player = helper == null ? null : helper.getPlayer();
+                if (player != null && player.getPlaybackState() == Player.STATE_BUFFERING) return;
+            }
+            ImageView image = gifImageView(holder);
+            InlineGifVideoPlayer gif = image == null ? null : inlineGifPlayers.get(image);
+            if (gif != null && gif.isBuffering()) return;
+        }
+        if (last < 0) return;
+        int step = mediaScrollingUp ? -1 : 1;
+        int edge = mediaScrollingUp ? first : last;
+        for (int distance = 1; distance <= 8; distance++) {
+            int position = edge + step * distance;
+            if (position < 0 || position >= getItemCount()) break;
+            Post post = peek(position);
+            if (post == null || post.isSpoiler() || shouldBlurPreview(post)
+                    || (post.isNSFW() && !mAutoplayNsfwVideos)) continue;
+            String url = post.getPostType() == Post.GIF_TYPE ? post.getMp4Variant()
+                    : post.getPostType() == Post.VIDEO_TYPE ? post.getVideoUrl() : null;
+            if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) continue;
+            if (nextClipPreloader == null) nextClipPreloader = mExoCreator.createPreloader();
+            if (nextClipPreloader == null) return;
+            ArrayList<Post.Preview> previews = post.getPreviews();
+            boolean portrait = previews != null && !previews.isEmpty()
+                    && previews.get(0).getPreviewHeight() > previews.get(0).getPreviewWidth();
+            nextClipPreloader.preload(Uri.parse(url), mNonDataSavingModeDefaultResolution, portrait);
+            return;
+        }
+        stopNextClipPreload();
     }
 
     /**
@@ -2199,11 +2328,13 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(child);
             View mediaView = gifMediaView(holder);
             if (mediaView == null) {
+                releaseInlineGif(holder);
                 continue;
             }
             // Every gif card on screen is visited, not just the winners: one that has dropped below
             // the threshold has to be put back to its still.
-            boolean animate = ToroUtil.visibleAreaOffset(mediaView, recyclerView) >= mStartAutoplayVisibleAreaOffset
+            boolean animate = canPlayVideo && recyclerView.hasWindowFocus()
+                    && ToroUtil.visibleAreaOffset(mediaView, recyclerView) >= mStartAutoplayVisibleAreaOffset
                     && (selected == null || selected.contains(holder.getBindingAdapterPosition()));
             setGifAnimating(holder, animate);
         }
@@ -2348,6 +2479,21 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         }
 
         if (animating) {
+            String mp4 = post.getMp4Variant();
+            if (mp4 != null && failedGifMp4s.get(mp4) == null) {
+                InlineGifVideoPlayer player = InlineGifVideoPlayer.create(imageView, Uri.parse(mp4), mExoCreator,
+                        failed -> {
+                            if (inlineGifPlayers.get(imageView) != failed) return;
+                            failedGifMp4s.put(mp4, true);
+                            stopNextClipPreload();
+                            releaseInlineGif(holder);
+                            setGifAnimating(holder, true);
+                        }, this::scheduleNextClipPreload);
+                if (player != null) {
+                    inlineGifPlayers.put(imageView, player);
+                    return;
+                }
+            }
             // The still rides along as the thumbnail so the card keeps showing something for the
             // seconds the original takes to arrive, instead of blanking back to the placeholder.
             mGlide.load(gifUrl)
@@ -2358,6 +2504,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     .downsample(mSaveMemoryCenterInsideDownsampleStrategy)
                     .into(imageView);
         } else {
+            InlineGifVideoPlayer player = inlineGifPlayers.remove(imageView);
+            if (player != null) player.release();
             mGlide.load(preview.getPreviewUrl())
                     .listener(listener)
                     .centerInside()
@@ -2466,6 +2614,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     }
 
     private void loadImage(final RecyclerView.ViewHolder holder) {
+        releaseInlineGif(holder);
         if (holder instanceof PostWithPreviewTypeViewHolder) {
             ((PostWithPreviewTypeViewHolder) holder).loadingIndicator.setVisibility(View.VISIBLE);
             Post post = ((PostWithPreviewTypeViewHolder) holder).post;
@@ -3026,6 +3175,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     @OptIn(markerClass = UnstableApi.class)
     @Override
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
+        releaseInlineGif(holder);
         if (holder instanceof PostViewHolder) {
             if (mHandleReadPost && mMarkPostsAsReadOnScroll) {
                 // Read from the holder's own bound post, not from a position captured at bind
@@ -3632,6 +3782,13 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
 
     public void setCanPlayVideo(boolean canPlayVideo) {
         this.canPlayVideo = canPlayVideo;
+        if (!canPlayVideo) stopNextClipPreload();
+        if (attachedRecyclerView != null) updateAnimatedGifs(attachedRecyclerView);
+        if (!canPlayVideo) {
+            for (InlineGifVideoPlayer player : inlineGifPlayers.values()) player.release();
+            inlineGifPlayers.clear();
+        }
+        if (canPlayVideo) scheduleNextClipPreload();
     }
 
     public void provideItemWidth(int width) {
@@ -4699,6 +4856,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                         if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
                                 && player.getPlaybackState() == Player.STATE_ENDED) {
                             onPlaybackFinished();
+                        }
+                        if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
+                                && player.getPlaybackState() == Player.STATE_READY) {
+                            scheduleNextClipPreload();
                         }
                     }
 

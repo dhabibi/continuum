@@ -63,6 +63,9 @@ public interface ExoCreator {
    */
   @NonNull MediaSource createMediaSource(@NonNull Uri uri, @Nullable String fileExt);
 
+  /** Optional preloader sharing this creator's network client and playback cache. */
+  @Nullable default NextClipPreloader createPreloader() { return null; }
+
   // Client just needs the method below to work with Toro, but I prepare both 2 above for custom use-cases.
 
   /**

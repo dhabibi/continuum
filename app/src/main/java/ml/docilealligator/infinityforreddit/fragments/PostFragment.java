@@ -258,6 +258,7 @@ public class PostFragment extends PostFragmentBase implements FragmentCommunicat
         super.onResume();
         if (mAdapter != null) {
             mAdapter.setCanStartActivity(true);
+            mAdapter.setCanPlayVideo(true);
         }
         if (isInLazyMode) {
             resumeLazyMode(false);
@@ -2248,6 +2249,7 @@ public class PostFragment extends PostFragmentBase implements FragmentCommunicat
         }
         if (mAdapter != null) {
             binding.recyclerViewPostFragment.onWindowVisibilityChanged(View.GONE);
+            mAdapter.setCanPlayVideo(false);
         }
     }
 

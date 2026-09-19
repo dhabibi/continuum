@@ -30,3 +30,9 @@ Daniel reported that imported lists saved but their feeds failed while single
 subreddits worked. He directed that these act as separate local subscription
 feeds using anonymous Home's existing implementation. Reuse that maintained
 local-list/shared-loader path; no server-owned Reddit multireddit is required.
+
+Daniel approved the media-loading enhancements: prefer MP4 for inline GIF
+playback when Reddit supplies it, share learned bandwidth estimates across clips,
+and preload a bounded amount of one upcoming clip. Keep current quality settings,
+respect autoplay/data-saving/privacy gates, retain original GIF fallback, and
+deliver an APK update signed with the preserved v2 key.

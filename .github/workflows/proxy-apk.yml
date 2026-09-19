@@ -47,14 +47,15 @@ jobs:
           umask 077
           mkdir -p "$HOME/.android"
           printf '%s' "$CONTINUUM_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
-      - name: Check legacy multireddit imports
-        run: ./gradlew :app:testDebugUnitTest --tests '*LegacyMultiredditLinkTest' --no-daemon --max-workers=2
+      - name: Check import and media regressions
+        run: ./gradlew :app:testDebugUnitTest --tests '*LegacyMultiredditLinkTest' --tests '*MediaPreloadBudgetTest' --tests '*InlineGifVideoPlayerTest' --tests '*PreloadWindowTest' --no-daemon --max-workers=2
       - name: Build installable debug APKs
         run: ./gradlew :app:assembleDebug --no-daemon --max-workers=2
       - name: Verify APK signatures
         run: |
           for apk in app/build/outputs/apk/debug/*.apk; do
             "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk"
+            "$ANDROID_HOME/build-tools/37.0.0/aapt" dump badging "$apk" | sed -n '1,5p'
           done
       - uses: actions/upload-artifact@v4
         with:
