@@ -77,4 +77,6 @@ Daniel subsequently reported scrolling stopping or a possible crash at the loade
 page boundary and requested the visible name "TikTok mode". Preserve the existing
 preference/activity identifiers while renaming the user-facing labels. Investigate
 the pagination handoff and distinguish a source-level repair from a phone crash
-reproduction. His usage cutoff remains pending explicit revision.
+reproduction. Work stopped at the 50% usage boundary with source checkpoint
+817515237. Daniel then explicitly authorized continuing until the APK is ready,
+lifting the cutoff for validation, push, build and delivery of this repair.

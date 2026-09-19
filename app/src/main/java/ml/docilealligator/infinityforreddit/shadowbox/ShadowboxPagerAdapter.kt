@@ -161,5 +161,4 @@ class ShadowboxPagerAdapter(
             else -> ShadowboxPreviewPageFragment.newInstance(postIndex, blur, ShadowboxPreviewPageFragment.KIND_LINK)
         }
     }
-
 }

@@ -14,8 +14,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
-import androidx.viewpager2.widget.ViewPager2
 import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
 import com.github.piasy.biv.BigImageViewer
 import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader
 import ml.docilealligator.infinityforreddit.ImageOkHttpClient
@@ -343,7 +343,7 @@ class ShadowboxActivity : BaseActivity() {
             return
         }
         builtPostCount = postCount
-        // Read the page the user is on before the insert moves the end page along, and take the
+        // Read the page the user is on before the footer is replaced, and take the
         // count from the adapter rather than from the event: while this screen is stopped the
         // model can append more than once and LiveData delivers only the last of those.
         val oldPageCount = adapter.pageCount
@@ -359,7 +359,7 @@ class ShadowboxActivity : BaseActivity() {
         }
         barrenFetches = 0
         if (wasOnEndPage) {
-            // Parked on the end page while it loaded: slide onto the first post that arrived.
+            // Parked on the end page while it loaded: show the first post that arrived.
             binding.viewPager2ShadowboxActivity.post {
                 if (!isFinishing && !isDestroyed) {
                     binding.viewPager2ShadowboxActivity.setCurrentItem(oldPageCount, false)

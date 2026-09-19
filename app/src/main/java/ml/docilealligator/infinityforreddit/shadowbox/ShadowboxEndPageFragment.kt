@@ -11,7 +11,7 @@ import ml.docilealligator.infinityforreddit.post.LoadingMorePostsStatus
 
 /**
  * The page after the last post: shows whether more posts are loading, failed (tap to retry) or
- * ran out. Once a load succeeds the pager slides past it onto the first new post.
+ * ran out. Once a load succeeds this page is replaced by the first new post.
  */
 class ShadowboxEndPageFragment : Fragment() {
 
@@ -24,7 +24,7 @@ class ShadowboxEndPageFragment : Fragment() {
         val activity = requireActivity() as ShadowboxActivity
         activity.typeface?.let { binding.statusTextViewShadowboxEndPageFragment.typeface = it }
         binding.root.setOnClickListener {
-            // Only a failed load is worth retrying; the model refuses while loading or when done.
+            // Retry a failed or idle load; the model refuses while loading or when done.
             activity.fetchMorePosts()
         }
         // The activity's own instance: asking ViewModelProvider for it without the factory it was
@@ -49,7 +49,7 @@ class ShadowboxEndPageFragment : Fragment() {
                 binding.statusTextViewShadowboxEndPageFragment.setText(R.string.no_more_posts)
             }
             else -> {
-                // NOT_LOADING / LOADED: nothing in flight and nothing to say yet.
+                // NOT_LOADING / LOADED: offer a way forward when no request is in flight.
                 binding.progressBarShadowboxEndPageFragment.visibility = View.INVISIBLE
                 binding.statusTextViewShadowboxEndPageFragment.setText(R.string.tiktok_load_more)
             }
