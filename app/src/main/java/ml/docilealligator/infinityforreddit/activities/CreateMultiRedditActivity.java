@@ -7,18 +7,23 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.Editable;
+import android.text.InputType;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.EditText;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.graphics.Insets;
 import androidx.core.view.OnApplyWindowInsetsListener;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.inputmethod.EditorInfoCompat;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import javax.inject.Inject;
@@ -31,6 +36,7 @@ import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
 import ml.docilealligator.infinityforreddit.databinding.ActivityCreateMultiRedditBinding;
 import ml.docilealligator.infinityforreddit.multireddit.CreateMultiReddit;
 import ml.docilealligator.infinityforreddit.multireddit.ExpandedSubredditInMultiReddit;
+import ml.docilealligator.infinityforreddit.multireddit.LegacyMultiredditLink;
 import ml.docilealligator.infinityforreddit.multireddit.MultiRedditJSONModel;
 import ml.docilealligator.infinityforreddit.utils.Utils;
 import retrofit2.Retrofit;
@@ -117,6 +123,7 @@ public class CreateMultiRedditActivity extends BaseActivity {
             }
         }
         bindView();
+        updateSelectionSummary();
     }
 
     private void bindView() {
@@ -148,6 +155,9 @@ public class CreateMultiRedditActivity extends BaseActivity {
         int itemId = item.getItemId();
         if (itemId == android.R.id.home) {
             finish();
+            return true;
+        } else if (itemId == R.id.action_import_legacy_multi_reddit_activity) {
+            showLegacyMultiredditImportDialog();
             return true;
         } else if (itemId == R.id.action_save_create_multi_reddit_activity) {
             Editable nameText = binding.multiRedditNameEditTextCreateMultiRedditActivity.getText();
@@ -205,6 +215,53 @@ public class CreateMultiRedditActivity extends BaseActivity {
         return false;
     }
 
+    private void showLegacyMultiredditImportDialog() {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_edit_text, null);
+        EditText input = Objects.requireNonNull(dialogView.findViewById(R.id.edit_text_edit_text_dialog));
+        input.setHint(R.string.import_legacy_multireddit_hint);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        input.setSingleLine(true);
+        input.setTextColor(mCustomThemeWrapper.getPrimaryTextColor());
+        input.setHintTextColor(mCustomThemeWrapper.getSecondaryTextColor());
+        if (typeface != null) {
+            input.setTypeface(typeface);
+        }
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                .setTitle(R.string.import_legacy_multireddit_title)
+                .setMessage(R.string.import_legacy_multireddit_message)
+                .setView(dialogView)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.import_legacy_multireddit_action, null)
+                .create();
+        dialog.setOnShowListener(ignored -> Objects.requireNonNull(dialog.getButton(AlertDialog.BUTTON_POSITIVE)).setOnClickListener(view -> {
+            Editable text = input.getText();
+            List<String> names = LegacyMultiredditLink.parse(text == null ? null : text.toString());
+            if (names.isEmpty()) {
+                input.setError(getString(R.string.import_legacy_multireddit_invalid));
+                input.requestFocus();
+                return;
+            }
+            ArrayList<ExpandedSubredditInMultiReddit> imported = new ArrayList<>();
+            for (String name : names) {
+                imported.add(new ExpandedSubredditInMultiReddit(name, null));
+            }
+            mSubreddits = imported;
+            updateSelectionSummary();
+            dialog.dismiss();
+            Snackbar.make(binding.coordinatorLayoutCreateMultiRedditActivity,
+                    getResources().getQuantityString(R.plurals.import_legacy_multireddit_success,
+                            imported.size(), imported.size()), Snackbar.LENGTH_SHORT).show();
+        }));
+        dialog.show();
+    }
+
+    private void updateSelectionSummary() {
+        binding.selectSubredditChipCreateMultiRedditActivity.setText(mSubreddits.isEmpty()
+                ? getString(R.string.select_subreddits_and_users)
+                : getString(R.string.multireddit_selection_count, mSubreddits.size()));
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -214,6 +271,7 @@ public class CreateMultiRedditActivity extends BaseActivity {
                         data.getParcelableArrayListExtra(SelectedSubredditsAndUsersActivity.EXTRA_RETURN_SELECTED_SUBREDDITS);
                 if (selectedSubreddits != null) {
                     mSubreddits = selectedSubreddits;
+                    updateSelectionSummary();
                 }
             }
         }

@@ -961,6 +961,17 @@
     <string name="default_redirect_uri" translatable="false">redreader://rr_oauth_redir</string>
 
     <string name="settings_hide_fab_in_post_details">Hide Floating Action Button</string>
+    <string name="import_legacy_multireddit_action">Import link</string>
+    <string name="import_legacy_multireddit_title">Import /r/a+b+c link</string>
+    <string name="import_legacy_multireddit_message">Paste a combined Reddit link to replace the selected communities.</string>
+    <string name="import_legacy_multireddit_hint">https://reddit.com/r/a+b+c</string>
+    <string name="import_legacy_multireddit_invalid">Enter a Reddit /r/a+b+c link or a+b+c list.</string>
+    <plurals name="import_legacy_multireddit_success">
+        <item quantity="one">Imported %1$d community</item>
+        <item quantity="other">Imported %1$d communities</item>
+    </plurals>
+    <string name="multireddit_selection_count">Subreddits and users (%1$d)</string>
+
     <string name="settings_category_media_title">Media</string>
     <string name="settings_category_gesture_sensitivity_title">Gesture Sensitivity</string>
     <string name="settings_tab_switching_sensitivity">Tab Switching Sensitivity</string>

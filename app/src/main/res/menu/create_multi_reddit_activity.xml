@@ -2,6 +2,13 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_import_legacy_multi_reddit_activity"
+        android:orderInCategory="0"
+        android:title="@string/import_legacy_multireddit_action"
+        android:icon="@drawable/ic_import_day_night_24dp"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_save_create_multi_reddit_activity"
         android:orderInCategory="1"
         android:title="@string/action_save"

@@ -14,3 +14,14 @@ provided by the supplied anonymous proxy.
 Keep the app patch small, preserve existing services, and deliver source plus an
 installable APK. Distinguish a successful build and live proxy checks from actual
 phone verification.
+
+Daniel confirmed that the first APK works on his phone. He then requested import
+of legacy Reddit /r/a+b+c links, including shorthand forms and case-insensitive
+deduplication, into the existing multireddit creation screen. Anonymous imports
+must use the existing local Room save flow, without another VPS endpoint.
+
+The first APK's temporary CI signing key was not retained. To protect the working
+installation, the second build uses a separate `org.cygnusx1.continuum.proxy`
+package, shown as Continuum Proxy, with a persistent private key for future
+updates. This is an implementation choice made while the optional installation
+preference question was unanswered; it does not authorize deleting the old app.

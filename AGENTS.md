@@ -17,6 +17,11 @@ The manual `Proxy APK` GitHub workflow installs the matching JDK/Android SDK.
 Check proxy behavior with `python -m unittest discover -s deploy/reddit-proxy`.
 Keep checks focused on changed behavior; preserve upstream build standards.
 
+CI restores the persistent private key from Actions secret
+`CONTINUUM_DEBUG_KEYSTORE`. Its local backup is ignored
+`.signing/continuum-debug.p12`. Keep that key; never regenerate or publish it.
+Changing it prevents Android from accepting updates over an installed build.
+
 Use `.scratch/` for local evidence. The anonymous proxy must remain private to the
 tailnet, bound to loopback on the host, with Reddit-only media targets. Preserve
 other Tailscale routes and services. Do not restart hermes-gateway.
