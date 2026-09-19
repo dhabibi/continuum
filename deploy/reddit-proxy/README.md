@@ -30,6 +30,15 @@ Each imported list is a separate local subscription feed, loaded by the same
 anonymous feed loader as Home. The proxy encodes the combined community
 separator as `%2B` for Reddit OAuth; literal `+` is redirected to Reddit's homepage.
 
+Version 3 improves feed media loading. GIF cards play Reddit's MP4 variant when
+available, silently and on a loop, with the existing still thumbnail and a GIF
+fallback. Video players share learned bandwidth estimates. The next eligible
+offscreen clip can warm its opening second into the existing 200 MiB playback
+cache, with at most 2 MiB of network reads and an eight-second preload window.
+Only one clip is warmed; scrolling, app pause and foreground buffering stop it.
+Data Saving Mode disables preloading, and autoplay/privacy/quality preferences
+continue to apply. No video-resolution setting is changed by the update.
+
 Build the service from this directory:
 
 ```sh
