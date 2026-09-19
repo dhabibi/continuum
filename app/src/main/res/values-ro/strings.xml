@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Potrivește numai prefixul"</string>
     <string name="action_start_lazy_mode">"Pornire Mod Leneș"</string>
     <string name="action_stop_lazy_mode">"Oprește Mod Leneș"</string>
-    <string name="action_shadowbox_mode">"Modul Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Modul TikTok"</string>
     <string name="action_send">"Trimitere"</string>
     <string name="action_sort">"Sortare"</string>
     <string name="action_hide_post">"Ascunde postarea"</string>
@@ -230,7 +230,7 @@ Apasă pentru reîncercare."</string>
     <string name="no_posts_no_lazy_mode">"Nicio postare disponibilă"</string>
     <string name="lazy_mode_start">"Mod Leneș începe în %1$.1fs"</string>
     <string name="lazy_mode_stop">"Mod Leneș oprit"</string>
-    <string name="shadowbox_no_posts">"Nu există postări disponibile pentru Modul Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Nu există postări disponibile pentru Modul TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Atinge pentru a dezvălui"</string>
     <string name="shadowbox_open_full_viewer">"Deschide în vizualizatorul complet"</string>
     <string name="shadowbox_open_comments">"Deschide comentariile"</string>
@@ -528,7 +528,7 @@ Apasă pentru reîncărcare."</string>
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Glisează în sus pentru a ascunde butonul „Mergi la următorul comentariu de top”"</string>
     <string name="settings_lazy_mode_interval_title">"Intervalul Modului Leneș"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Ascunde postările text și postările fără previzualizare"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Modul Shadowbox omite fiecare postare text și orice altă postare care nu are nicio imagine de previzualizare."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Modul TikTok omite fiecare postare text și orice altă postare care nu are nicio imagine de previzualizare."</string>
     <string name="settings_font_title">"Font"</string>
     <string name="settings_preview_font_title">"Previzualizare font"</string>
     <string name="settings_font_summary">"Font"</string>

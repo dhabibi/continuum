@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Csak az előtag egyezzen"</string>
     <string name="action_start_lazy_mode">"Lusta mód indítása"</string>
     <string name="action_stop_lazy_mode">"Lusta mód leállítása"</string>
-    <string name="action_shadowbox_mode">"Shadowbox mód"</string>
+    <string name="action_shadowbox_mode">"TikTok mód"</string>
     <string name="action_send">"Küldés"</string>
     <string name="action_sort">"Rendezés"</string>
     <string name="action_hide_post">"Bejegyzés elrejtése"</string>
@@ -224,7 +224,7 @@
     <string name="no_posts_no_lazy_mode">"Nincs rendelkezésre álló bejegyzés"</string>
     <string name="lazy_mode_start">"Lusta mód kezdete: %1$.1fs"</string>
     <string name="lazy_mode_stop">"A lusta mód leállt"</string>
-    <string name="shadowbox_no_posts">"Nincsenek hozzászólások a Shadowbox módhoz"</string>
+    <string name="shadowbox_no_posts">"Nincsenek hozzászólások a TikTok módhoz"</string>
     <string name="shadowbox_tap_to_reveal">"Koppints a felfedéshez"</string>
     <string name="shadowbox_open_full_viewer">"Megnyitás teljes megtekintőben"</string>
     <string name="shadowbox_open_comments">"Nyisd meg a megjegyzéseket"</string>
@@ -520,7 +520,7 @@
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Húzz fefelé, hogy elrejtsd a következő felső szintű komment gombot"</string>
     <string name="settings_lazy_mode_interval_title">"Lusta mód entervallum"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Szöveges bejegyzések és előnézet nélküli bejegyzések elrejtése"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"A Shadowbox mód minden szöveges bejegyzést kihagy, és minden olyan bejegyzést, amelynél nincs előnézeti kép."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"A TikTok mód minden szöveges bejegyzést kihagy, és minden olyan bejegyzést, amelynél nincs előnézeti kép."</string>
     <string name="settings_font_title">"Betűtípus"</string>
     <string name="settings_preview_font_title">"Betűtípus előnézet"</string>
     <string name="settings_font_summary">"Betűtípus"</string>

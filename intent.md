@@ -72,3 +72,9 @@ replace the redundant Shadowbox-to-fullscreen-viewer flow with one TikTok-style
 screen matching his attached mockup: media fills the screen, compact right-side
 actions, bottom captions and seeking, and vertical post navigation throughout.
 Keep the existing sort choices, profile features and media performance.
+
+Daniel subsequently reported scrolling stopping or a possible crash at the loaded
+page boundary and requested the visible name "TikTok mode". Preserve the existing
+preference/activity identifiers while renaming the user-facing labels. Investigate
+the pagination handoff and distinguish a source-level repair from a phone crash
+reproduction. His usage cutoff remains pending explicit revision.

@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Corresponder apenas ao prefixo"</string>
     <string name="action_start_lazy_mode">"Iniciar modo automático"</string>
     <string name="action_stop_lazy_mode">"Parar modo automático"</string>
-    <string name="action_shadowbox_mode">"Modo Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Modo TikTok"</string>
     <string name="action_send">"Enviar"</string>
     <string name="action_sort">"Ordenar"</string>
     <string name="action_hide_post">"Ocultar postagem"</string>
@@ -231,7 +231,7 @@ Toque para tentar de novo."</string>
     <string name="no_posts_no_lazy_mode">"Sem postagens disponíveis"</string>
     <string name="lazy_mode_start">"Modo preguiçoso inicia em %1$.1fs"</string>
     <string name="lazy_mode_stop">"Modo Preguiçoso parou"</string>
-    <string name="shadowbox_no_posts">"Nenhuma postagem disponível para o modo Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Nenhuma postagem disponível para o modo TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Toque para revelar"</string>
     <string name="shadowbox_open_full_viewer">"Abrir no visualizador completo"</string>
     <string name="shadowbox_open_comments">"Abrir comentários"</string>
@@ -529,7 +529,7 @@ Toque para tentar de novo."</string>
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Deslizar para Cima para Ocultar o Botão de Avanço para Próximo Comentário Mais Votado"</string>
     <string name="settings_lazy_mode_interval_title">"Intervalo do Modo Preguiçoso"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Ocultar postagens de texto e postagens sem visualização"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"O modo Shadowbox ignora todas as postagens de texto e qualquer outra postagem que não tenha imagem de visualização."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"O modo TikTok ignora todas as postagens de texto e qualquer outra postagem que não tenha imagem de visualização."</string>
     <string name="settings_font_title">"Fonte"</string>
     <string name="settings_preview_font_title">"Prever fonte"</string>
     <string name="settings_font_summary">"Fonte"</string>

@@ -8,13 +8,8 @@ import ml.docilealligator.infinityforreddit.viewmodels.ViewPostDetailActivityVie
 import java.util.IdentityHashMap
 
 /**
- * One page per post, plus a trailing end page that shows the load-more state.
- *
- * Item ids are stable and keyed by post identity rather than position, so appending a page of
- * posts is a plain [notifyItemRangeInserted]: the end page keeps its fragment and moves to the
- * new tail instead of being rebound as the first new post. Identity, not fullName, because the
- * swipe list model only dedupes new posts against each other, so a post could in principle appear
- * twice and two positions must still not share an id.
+ * One page per post, plus a loading footer. Posts keep stable identity across appends; the old
+ * footer is replaced by the first new post so ViewPager2 cannot follow it past incoming content.
  */
 class ShadowboxPagerAdapter(
     activity: FragmentActivity,
@@ -26,6 +21,9 @@ class ShadowboxPagerAdapter(
     private val idsByPost = IdentityHashMap<Post, Long>()
     private val postsById = HashMap<Long, Post>()
     private var nextId = 0L
+    private var indexedPostCount = 0
+    private val endPageId: Long
+        get() = Long.MIN_VALUE + pages.size
 
     /**
      * Indices into the post list, in order, of the posts this mode actually shows.
@@ -52,6 +50,7 @@ class ShadowboxPagerAdapter(
                 pages.add(i)
             }
         }
+        indexedPostCount = posts.size
     }
 
     /**
@@ -60,10 +59,23 @@ class ShadowboxPagerAdapter(
      */
     fun appendPages(): Int {
         val oldSize = pages.size
-        buildPages()
+        val posts = posts()
+        if (posts.size < indexedPostCount) {
+            buildPages()
+            notifyDataSetChanged()
+            return 0
+        }
+        // Existing pages keep their positions even if a post's preview metadata changes later.
+        for (i in indexedPostCount until posts.size) {
+            if (showPost(posts[i])) pages.add(i)
+        }
+        indexedPostCount = posts.size
         val added = pages.size - oldSize
         if (added > 0) {
-            notifyItemRangeInserted(oldSize, added)
+            // Replace the old loading page with the first new post. A permanent footer ID
+            // makes ViewPager2 follow that footer to the new tail, skipping the arriving posts.
+            notifyItemChanged(oldSize)
+            notifyItemRangeInserted(oldSize + 1, added)
         }
         return added
     }
@@ -81,7 +93,7 @@ class ShadowboxPagerAdapter(
 
     override fun getItemId(position: Int): Long {
         if (position >= pages.size) {
-            return END_PAGE_ID
+            return endPageId
         }
         val post = posts()[pages[position]]
         return idsByPost.getOrPut(post) {
@@ -92,8 +104,8 @@ class ShadowboxPagerAdapter(
     }
 
     override fun containsItem(itemId: Long): Boolean {
-        if (itemId == END_PAGE_ID) {
-            return true
+        if (itemId < 0) {
+            return itemId == endPageId
         }
         val post = postsById[itemId] ?: return false
         return posts().any { it === post }
@@ -150,7 +162,4 @@ class ShadowboxPagerAdapter(
         }
     }
 
-    companion object {
-        private const val END_PAGE_ID = Long.MIN_VALUE
-    }
 }

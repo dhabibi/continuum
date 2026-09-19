@@ -224,7 +224,7 @@
     <string name="no_posts_no_lazy_mode">"Không bài đăng nào có sẵn"</string>
     <string name="lazy_mode_start">"Chế độ lười biếng bắt đầu trong %1$.1fs"</string>
     <string name="lazy_mode_stop">"Chế độ lười biếng đã dừng"</string>
-    <string name="shadowbox_no_posts">"Không có bài đăng nào cho Chế độ Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Không có bài đăng nào cho Chế độ TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Nhấn để hiển thị"</string>
     <string name="shadowbox_open_full_viewer">"Mở ở chế độ xem đầy đủ"</string>
     <string name="shadowbox_open_comments">"Mở bình luận"</string>

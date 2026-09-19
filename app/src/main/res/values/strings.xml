@@ -64,7 +64,7 @@
     <string name="action_match_prefix_only">Match prefix only</string>
     <string name="action_start_lazy_mode">Start Lazy Mode</string>
     <string name="action_stop_lazy_mode">Stop Lazy Mode</string>
-    <string name="action_shadowbox_mode">Shadowbox Mode</string>
+    <string name="action_shadowbox_mode">TikTok Mode</string>
     <string name="action_send">Send</string>
     <string name="action_sort">Sort</string>
     <string name="action_hide_post">Hide Post</string>
@@ -239,7 +239,7 @@
     <string name="no_posts_no_lazy_mode">No posts available</string>
     <string name="lazy_mode_start">Lazy Mode starts in %1$.1fs</string>
     <string name="lazy_mode_stop">Lazy Mode stopped</string>
-    <string name="shadowbox_no_posts">No posts available for Shadowbox Mode</string>
+    <string name="shadowbox_no_posts">No posts available for TikTok Mode</string>
     <string name="shadowbox_tap_to_reveal">Tap to reveal</string>
     <string name="shadowbox_open_full_viewer">Open in full viewer</string>
     <string name="shadowbox_open_comments">Open comments</string>
@@ -565,7 +565,7 @@
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">Swipe Up to Hide Jump to Next Top-level Comment Button</string>
     <string name="settings_lazy_mode_interval_title">Lazy Mode Interval</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">Hide Text Posts and Posts with No Preview</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">Shadowbox Mode skips every text post, and any other post that has no preview image.</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">TikTok Mode skips every text post, and any other post that has no preview image.</string>
     <string name="settings_font_title">Font</string>
     <string name="settings_preview_font_title">Font Preview</string>
     <string name="settings_font_summary">Font</string>
@@ -989,6 +989,7 @@
     <string name="shadowbox_open_community">Open community</string>
     <string name="shadowbox_like_action">Upvote. Long press to downvote.</string>
     <string name="shadowbox_close">Back to feed</string>
+    <string name="tiktok_load_more">Tap to load more posts</string>
     <string name="subscribe_to_community">Subscribe to r/%1$s</string>
     <string name="add_community_to_multireddit">Add r/%1$s to a multireddit</string>
     <string name="create_multireddit_from_search">Create a multireddit with this community already selected.</string>

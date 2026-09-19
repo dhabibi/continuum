@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Dopasowuje tylko prefiks"</string>
     <string name="action_start_lazy_mode">"Rozpocznij tryb lenia"</string>
     <string name="action_stop_lazy_mode">"Zatrzymaj tryb lenia"</string>
-    <string name="action_shadowbox_mode">"Tryb Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Tryb TikTok"</string>
     <string name="action_send">"Wyślij"</string>
     <string name="action_sort">"Sortuj"</string>
     <string name="action_hide_post">"Ukryj post"</string>
@@ -225,7 +225,7 @@ Naciśnij, aby spróbować ponownie."</string>
     <string name="no_posts_no_lazy_mode">"Nie znaleziono postów"</string>
     <string name="lazy_mode_start">"Tryb lenia zaczyna się za %1$.1fs"</string>
     <string name="lazy_mode_stop">"Zatrzymano tryb lenia"</string>
-    <string name="shadowbox_no_posts">"Brak dostępnych postów w trybie Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Brak dostępnych postów w trybie TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Kliknij, aby odsłonić"</string>
     <string name="shadowbox_open_full_viewer">"Otwórz w pełnej przeglądarce"</string>
     <string name="shadowbox_open_comments">"Otwórz komentarze"</string>
@@ -521,7 +521,7 @@ Naciśnij, aby spróbować ponownie."</string>
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Przesuń w górę, aby ukryć przycisk przejścia do następnego komentarza poziomu Top"</string>
     <string name="settings_lazy_mode_interval_title">"Częstotliwość trybu lenia"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Ukryj posty tekstowe i posty bez podglądu"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Tryb Shadowbox pomija każdy post tekstowy i każdy inny post, który nie ma obrazu podglądu."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Tryb TikTok pomija każdy post tekstowy i każdy inny post, który nie ma obrazu podglądu."</string>
     <string name="settings_font_title">"Czcionka"</string>
     <string name="settings_preview_font_title">"Podgląd czcionki"</string>
     <string name="settings_font_summary">"Czcionka"</string>

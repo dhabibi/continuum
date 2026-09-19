@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Αντιστοίχιση μόνο του προθέματος"</string>
     <string name="action_start_lazy_mode">"Εκκίνηση Lazy Mode"</string>
     <string name="action_stop_lazy_mode">"Σταμάτημα Lazy Mode"</string>
-    <string name="action_shadowbox_mode">"Λειτουργία Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Λειτουργία TikTok"</string>
     <string name="action_send">"Αποστολή"</string>
     <string name="action_sort">"Ταξινόμηση"</string>
     <string name="action_hide_post">"Απόκρυψη ανάρτησης"</string>
@@ -224,7 +224,7 @@
     <string name="no_posts_no_lazy_mode">"Καμία ανάρτηση"</string>
     <string name="lazy_mode_start">"Το Lazy Mode ξεκινάει σε %1$.1fs"</string>
     <string name="lazy_mode_stop">"Το Lazy Mode σταμάτησε"</string>
-    <string name="shadowbox_no_posts">"Δεν υπάρχουν διαθέσιμες αναρτήσεις για τη λειτουργία Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Δεν υπάρχουν διαθέσιμες αναρτήσεις για τη λειτουργία TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Πάτα για αποκάλυψη"</string>
     <string name="shadowbox_open_full_viewer">"Άνοιγμα σε πλήρη προβολή"</string>
     <string name="shadowbox_open_comments">"Άνοιξε τα σχόλια"</string>
@@ -521,7 +521,7 @@
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Σύρε προς τα Πάνω για Απόκρυψη Κουμπιού Άλμα προς το Σχόλιο Άνω Επιπέδου"</string>
     <string name="settings_lazy_mode_interval_title">"Διάστημα Λειτουργίας Τεμπέλη"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Απόκρυψη αναρτήσεων κειμένου και αναρτήσεων χωρίς προεπισκόπηση"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Η λειτουργία Shadowbox Mode παραλείπει κάθε ανάρτηση κειμένου και οποιαδήποτε άλλη ανάρτηση που δεν έχει εικόνα προεπισκόπησης."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Η λειτουργία TikTok Mode παραλείπει κάθε ανάρτηση κειμένου και οποιαδήποτε άλλη ανάρτηση που δεν έχει εικόνα προεπισκόπησης."</string>
     <string name="settings_font_title">"Γραμματοσειρά"</string>
     <string name="settings_preview_font_title">"Προεπισκόπηση Γραμματοσειράς"</string>
     <string name="settings_font_summary">"Γραμματοσειρά"</string>

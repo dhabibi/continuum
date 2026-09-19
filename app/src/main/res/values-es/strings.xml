@@ -230,7 +230,7 @@ Toca para reintentar."</string>
     <string name="no_posts_no_lazy_mode">"No hay publicaciones disponibles"</string>
     <string name="lazy_mode_start">"El modo automático empieza en %1$.1fs"</string>
     <string name="lazy_mode_stop">"Se ha detenido el modo automático"</string>
-    <string name="shadowbox_no_posts">"No hay publicaciones disponibles para el modo Shadowbox"</string>
+    <string name="shadowbox_no_posts">"No hay publicaciones disponibles para el modo TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Toque para revelar"</string>
     <string name="shadowbox_open_full_viewer">"Abrir en visor completo"</string>
     <string name="shadowbox_open_comments">"Abrir comentarios"</string>
@@ -528,7 +528,7 @@ Toca para reintentar."</string>
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Deslizar hacia arriba para ocultar el botón de siguiente comentario más alto"</string>
     <string name="settings_lazy_mode_interval_title">"Tiempo para la pausa del modo automático"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Ocultar publicaciones de texto y publicaciones sin vista previa"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"El modo Shadowbox omite todas las publicaciones de texto y cualquier otra publicación que no tenga una imagen de vista previa."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"El modo TikTok omite todas las publicaciones de texto y cualquier otra publicación que no tenga una imagen de vista previa."</string>
     <string name="settings_font_title">"Fuente"</string>
     <string name="settings_preview_font_title">"Previsualización de la fuente"</string>
     <string name="settings_font_summary">"Fuente"</string>

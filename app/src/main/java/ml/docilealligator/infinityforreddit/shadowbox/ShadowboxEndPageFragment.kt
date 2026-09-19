@@ -51,7 +51,7 @@ class ShadowboxEndPageFragment : Fragment() {
             else -> {
                 // NOT_LOADING / LOADED: nothing in flight and nothing to say yet.
                 binding.progressBarShadowboxEndPageFragment.visibility = View.INVISIBLE
-                binding.statusTextViewShadowboxEndPageFragment.text = ""
+                binding.statusTextViewShadowboxEndPageFragment.setText(R.string.tiktok_load_more)
             }
         }
     }

@@ -15,6 +15,7 @@ import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.viewpager2.widget.ViewPager2
+import androidx.recyclerview.widget.RecyclerView
 import com.github.piasy.biv.BigImageViewer
 import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader
 import ml.docilealligator.infinityforreddit.ImageOkHttpClient
@@ -324,7 +325,12 @@ class ShadowboxActivity : BaseActivity() {
     }
 
     private fun onLoadMoreState(state: ViewPostDetailActivityViewModel.LoadMorePostsState) {
-        if (state.status != LoadingMorePostsStatus.LOADED) {
+        if (isFinishing || isDestroyed || state.status != LoadingMorePostsStatus.LOADED) {
+            return
+        }
+        val recyclerView = binding.viewPager2ShadowboxActivity.getChildAt(0) as RecyclerView
+        if (recyclerView.isComputingLayout) {
+            recyclerView.post { onLoadMoreState(state) }
             return
         }
         val adapter = this.adapter ?: return
@@ -355,7 +361,12 @@ class ShadowboxActivity : BaseActivity() {
         if (wasOnEndPage) {
             // Parked on the end page while it loaded: slide onto the first post that arrived.
             binding.viewPager2ShadowboxActivity.post {
-                binding.viewPager2ShadowboxActivity.setCurrentItem(oldPageCount, true)
+                if (!isFinishing && !isDestroyed) {
+                    binding.viewPager2ShadowboxActivity.setCurrentItem(oldPageCount, false)
+                    // Replacing the footer can keep the same numeric position and therefore
+                    // emit no onPageSelected callback. Activate the arriving post explicitly.
+                    onPageShown(oldPageCount)
+                }
             }
         }
     }

@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Isbarbardhig horgalaha kaliya"</string>
     <string name="action_start_lazy_mode">"Bilow Qaabka caajiska ah"</string>
     <string name="action_stop_lazy_mode">"Jooji Qaabka caajiska ah"</string>
-    <string name="action_shadowbox_mode">"Habka Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Habka TikTok"</string>
     <string name="action_send">"Dir"</string>
     <string name="action_sort">"Kala soocida"</string>
     <string name="action_hide_post">"Qari Boostada"</string>
@@ -222,7 +222,7 @@
     <string name="no_posts_no_lazy_mode">"Qoraallo lama hayo"</string>
     <string name="lazy_mode_start">"Qaabka caajiska ah ee wuxuu ku bilaabmaa %1$.1fs"</string>
     <string name="lazy_mode_stop">"Qaabka caajiska ah ee waa joogsaday"</string>
-    <string name="shadowbox_no_posts">"Ma jiraan qoraallo loo heli karo Habka Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Ma jiraan qoraallo loo heli karo Habka TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Taabo si aad u muujiso"</string>
     <string name="shadowbox_open_full_viewer">"Ku furan daawade buuxa"</string>
     <string name="shadowbox_open_comments">"Faallo furan"</string>
@@ -518,7 +518,7 @@
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"U dhufo si aad u qariso U bood badhanka faallooyinka heerka sare ee xiga"</string>
     <string name="settings_lazy_mode_interval_title">"Dhexdhexaadinta Qaabka caajiska ah ee"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Qari Qoraallada iyo Qoraallada aan Horudhac lahayn"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Qaabka Shadowbox wuxuu ka boodaa qoraal kasta iyo qoraal kasta oo kale oo aan lahayn muuqaal horudhac ah."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Qaabka TikTok wuxuu ka boodaa qoraal kasta iyo qoraal kasta oo kale oo aan lahayn muuqaal horudhac ah."</string>
     <string name="settings_font_title">"Farta"</string>
     <string name="settings_preview_font_title">"Font Horudhac"</string>
     <string name="settings_font_summary">"Farta"</string>

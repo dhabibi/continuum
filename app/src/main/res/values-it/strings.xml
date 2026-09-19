@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Corrisponde solo al prefisso"</string>
     <string name="action_start_lazy_mode">"Attiva la modalità di scorrimento automatico"</string>
     <string name="action_stop_lazy_mode">"Disattiva la modalità di scorrimento automatico"</string>
-    <string name="action_shadowbox_mode">"Modalità Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Modalità TikTok"</string>
     <string name="action_send">"Invia"</string>
     <string name="action_sort">"Ordina"</string>
     <string name="action_hide_post">"Nascondi"</string>
@@ -231,7 +231,7 @@ Tocca per riprovare."</string>
     <string name="no_posts_no_lazy_mode">"Nessun post disponibile"</string>
     <string name="lazy_mode_start">"Modalità di scorrimento automatico partirà tra %1$.1fs"</string>
     <string name="lazy_mode_stop">"Modalità scorrimento automatico disattivata"</string>
-    <string name="shadowbox_no_posts">"Nessun post disponibile per la modalità Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Nessun post disponibile per la modalità TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Tocca per rivelare"</string>
     <string name="shadowbox_open_full_viewer">"Apri nel visualizzatore completo"</string>
     <string name="shadowbox_open_comments">"Apri commenti"</string>
@@ -529,7 +529,7 @@ Tocca per riprovare."</string>
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Scorri Verso l'Alto per Nascondere il Tasto per Saltare al Prossimo Commento di Primo Livello"</string>
     <string name="settings_lazy_mode_interval_title">"Intervallo Modalità Pigra"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Nascondi post di testo e post senza anteprima"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"La modalità Shadowbox salta ogni post di testo e qualsiasi altro post privo di immagine di anteprima."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"La modalità TikTok salta ogni post di testo e qualsiasi altro post privo di immagine di anteprima."</string>
     <string name="settings_font_title">"Caratteri"</string>
     <string name="settings_preview_font_title">"Anteprima carattere"</string>
     <string name="settings_font_summary">"Caratteri"</string>

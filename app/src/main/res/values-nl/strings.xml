@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Alleen het voorvoegsel vergelijken"</string>
     <string name="action_start_lazy_mode">"Luie modus inschakelen"</string>
     <string name="action_stop_lazy_mode">"Luie modus uitschakelen"</string>
-    <string name="action_shadowbox_mode">"Shadowbox-modus"</string>
+    <string name="action_shadowbox_mode">"TikTok-modus"</string>
     <string name="action_send">"Versturen"</string>
     <string name="action_sort">"Sorteren"</string>
     <string name="action_hide_post">"Bericht verbergen"</string>
@@ -226,7 +226,7 @@ Druk om opnieuw te proberen."</string>
     <string name="no_posts_no_lazy_mode">"Geen berichten beschikbaar"</string>
     <string name="lazy_mode_start">"De luie modus start over %1$.1fs"</string>
     <string name="lazy_mode_stop">"De luie modus is gestopt"</string>
-    <string name="shadowbox_no_posts">"Er zijn geen berichten beschikbaar voor de Shadowbox-modus"</string>
+    <string name="shadowbox_no_posts">"Er zijn geen berichten beschikbaar voor de TikTok-modus"</string>
     <string name="shadowbox_tap_to_reveal">"Tik om te onthullen"</string>
     <string name="shadowbox_open_full_viewer">"Openen in volledige weergave"</string>
     <string name="shadowbox_open_comments">"Opmerkingen openen"</string>
@@ -524,7 +524,7 @@ Druk om opnieuw te proberen."</string>
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Omhoog vegen beperken tot volgende reactie op het hoogste niveau"</string>
     <string name="settings_lazy_mode_interval_title">"Luie modus: tussenpoos"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Tekstberichten en berichten zonder voorbeeld verbergen"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Shadowbox-modus slaat elk tekstbericht over, en elk ander bericht dat geen voorbeeldafbeelding heeft."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"TikTok-modus slaat elk tekstbericht over, en elk ander bericht dat geen voorbeeldafbeelding heeft."</string>
     <string name="settings_font_title">"Lettertype"</string>
     <string name="settings_preview_font_title">"Voorvertoning"</string>
     <string name="settings_font_summary">"Lettertype"</string>

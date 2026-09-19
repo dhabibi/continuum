@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Odgovara samo prefiksu"</string>
     <string name="action_start_lazy_mode">"Pokreni Mod za lijenčine"</string>
     <string name="action_stop_lazy_mode">"Zaustavi Mod za lijenčine"</string>
-    <string name="action_shadowbox_mode">"Način Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Način TikTok"</string>
     <string name="action_send">"Pošalji"</string>
     <string name="action_sort">"Sortiraj"</string>
     <string name="action_hide_post">"Sakrij objavu"</string>
@@ -223,7 +223,7 @@
     <string name="no_posts_no_lazy_mode">"Nema dostupnih objava"</string>
     <string name="lazy_mode_start">"Mod za lijenčine počinje za %1$.1fs"</string>
     <string name="lazy_mode_stop">"Mod za lijenčine zaustavljen"</string>
-    <string name="shadowbox_no_posts">"Nema dostupnih postova za Shadowbox Mode"</string>
+    <string name="shadowbox_no_posts">"Nema dostupnih postova za TikTok Mode"</string>
     <string name="shadowbox_tap_to_reveal">"Dodirni za otkrivanje"</string>
     <string name="shadowbox_open_full_viewer">"Otvori u punom pregledniku"</string>
     <string name="shadowbox_open_comments">"Otvori komentare"</string>
@@ -519,7 +519,7 @@
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Prelazak prstom prema gore za skrivanje ''Skoći na sljedeći Top komentar'' gumba"</string>
     <string name="settings_lazy_mode_interval_title">"Interval Moda za lijenčine"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Sakrij tekstualne postove i postove bez pregleda"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Shadowbox Mode preskače svaki tekstualni post i svaki drugi post koji nema sliku za pregled."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"TikTok Mode preskače svaki tekstualni post i svaki drugi post koji nema sliku za pregled."</string>
     <string name="settings_font_title">"Font"</string>
     <string name="settings_preview_font_title">"Pregled fonta"</string>
     <string name="settings_font_summary">"Font"</string>

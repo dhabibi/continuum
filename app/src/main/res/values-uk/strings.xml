@@ -61,7 +61,7 @@
     <string name="action_match_prefix_only">"Збігається лише з префіксом"</string>
     <string name="action_start_lazy_mode">"Розпочати лінивий режим"</string>
     <string name="action_stop_lazy_mode">"Зупинити лінивий режим"</string>
-    <string name="action_shadowbox_mode">"Режим Shadowbox"</string>
+    <string name="action_shadowbox_mode">"Режим TikTok"</string>
     <string name="action_send">"Надіслати"</string>
     <string name="action_sort">"Сортувати"</string>
     <string name="action_hide_post">"Сховати допис"</string>
@@ -230,7 +230,7 @@
     <string name="no_posts_no_lazy_mode">"Нема доступних дописів"</string>
     <string name="lazy_mode_start">"Лінивий режим розпочато %1$.1fс"</string>
     <string name="lazy_mode_stop">"Лінивий режим зупинено"</string>
-    <string name="shadowbox_no_posts">"Немає доступних публікацій для режиму Shadowbox"</string>
+    <string name="shadowbox_no_posts">"Немає доступних публікацій для режиму TikTok"</string>
     <string name="shadowbox_tap_to_reveal">"Торкнись, щоб відкрити"</string>
     <string name="shadowbox_open_full_viewer">"Відкрити в повній програмі перегляду"</string>
     <string name="shadowbox_open_comments">"Відкрити коментарі"</string>
@@ -528,7 +528,7 @@
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Ковзни уверх, щоб приховати стрибок до наступної кнопки коментаря верхнього рівня"</string>
     <string name="settings_lazy_mode_interval_title">"Крок лінивого режиму"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Приховати текстові дописи та дописи без попереднього перегляду"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Режим Shadowbox пропускає кожну текстову публікацію та будь-яку іншу публікацію, яка не має попереднього зображення."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Режим TikTok пропускає кожну текстову публікацію та будь-яку іншу публікацію, яка не має попереднього зображення."</string>
     <string name="settings_font_title">"Шрифт"</string>
     <string name="settings_preview_font_title">"Перегляд шрифтів"</string>
     <string name="settings_font_summary">"Шрифт"</string>

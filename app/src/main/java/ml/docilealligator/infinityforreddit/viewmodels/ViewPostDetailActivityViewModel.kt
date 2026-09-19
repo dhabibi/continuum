@@ -364,7 +364,7 @@ class ViewPostDetailActivityViewModel(
         } else {
             posts?.let { posts ->
                 val currentPostsSize = posts.size
-                val existingPostIds = mutableSetOf<String>()
+                val existingPostIds = posts.mapTo(mutableSetOf()) { it.id }
                 for (p in newPosts) {
                     if (existingPostIds.contains(p.id)) {
                         continue

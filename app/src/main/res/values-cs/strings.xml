@@ -230,7 +230,7 @@
     <string name="no_posts_no_lazy_mode">"Nejsou dostupné žádné příspěvky"</string>
     <string name="lazy_mode_start">"Líný režim bude spuštěn za %1$.1fs"</string>
     <string name="lazy_mode_stop">"Líný režim zastaven"</string>
-    <string name="shadowbox_no_posts">"Pro režim Shadowbox nejsou k dispozici žádné příspěvky"</string>
+    <string name="shadowbox_no_posts">"Pro režim TikTok nejsou k dispozici žádné příspěvky"</string>
     <string name="shadowbox_tap_to_reveal">"Klepnutím zobrazíš"</string>
     <string name="shadowbox_open_full_viewer">"Otevřít v plném prohlížeči"</string>
     <string name="shadowbox_open_comments">"Otevřít komentáře"</string>

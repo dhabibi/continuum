@@ -231,7 +231,7 @@ Tekrar denemek için tıklayın."</string>
     <string name="no_posts_no_lazy_mode">"Hiç gönderi yok"</string>
     <string name="lazy_mode_start">"Uyuşuk Modu %1$.1fs'da başlıyor"</string>
     <string name="lazy_mode_stop">"Uyuşuk Modu durdu"</string>
-    <string name="shadowbox_no_posts">"Shadowbox Modu için gönderi yok"</string>
+    <string name="shadowbox_no_posts">"TikTok Modu için gönderi yok"</string>
     <string name="shadowbox_tap_to_reveal">"Ortaya çıkarmak için dokunun"</string>
     <string name="shadowbox_open_full_viewer">"Tam görüntüleyicide aç"</string>
     <string name="shadowbox_open_comments">"Yorumları aç"</string>
@@ -529,7 +529,7 @@ Tekrar denemek için tıklayın."</string>
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Gizlemek İçin Yukarı Kaydır ve Sonraki En İyi Yorumlar Düğmesine Git"</string>
     <string name="settings_lazy_mode_interval_title">"Uyuşuk Mod Aralığı"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Metin Gönderilerini ve Önizlemesiz Gönderileri Gizle"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Shadowbox Modu, her metin gönderisini ve önizleme görüntüsü olmayan diğer tüm gönderileri atlar."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"TikTok Modu, her metin gönderisini ve önizleme görüntüsü olmayan diğer tüm gönderileri atlar."</string>
     <string name="settings_font_title">"Yazı Tipi"</string>
     <string name="settings_preview_font_title">"Yazı Tipi Önizlemesi"</string>
     <string name="settings_font_summary">"Yazı Tipi"</string>

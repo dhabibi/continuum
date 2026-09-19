@@ -229,7 +229,7 @@
     <string name="no_posts_no_lazy_mode">"Нет доступных постов"</string>
     <string name="lazy_mode_start">"Ленивый режим начнётся через %1$.1fs"</string>
     <string name="lazy_mode_stop">"Ленивый режим остановлен"</string>
-    <string name="shadowbox_no_posts">"Нет доступных сообщений для режима Shadowbox."</string>
+    <string name="shadowbox_no_posts">"Нет доступных сообщений для режима TikTok."</string>
     <string name="shadowbox_tap_to_reveal">"Нажми, чтобы открыть"</string>
     <string name="shadowbox_open_full_viewer">"Открыть в полной программе просмотра"</string>
     <string name="shadowbox_open_comments">"Открыть комментарии"</string>
@@ -527,7 +527,7 @@
     <string name="settings_swipe_up_to_hide_jump_to_next_top_level_comment_button_title">"Провести вверх, чтобы скрыть кнопку перехода к следующему комментарию верхнего уровня"</string>
     <string name="settings_lazy_mode_interval_title">"Интервал ленивого режима"</string>
     <string name="settings_shadowbox_hide_text_and_previewless_posts_title">"Скрыть текстовые сообщения и сообщения без предварительного просмотра"</string>
-    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Режим Shadowbox пропускает каждое текстовое сообщение и любое другое сообщение, не имеющее изображения предварительного просмотра."</string>
+    <string name="settings_shadowbox_hide_text_and_previewless_posts_summary">"Режим TikTok пропускает каждое текстовое сообщение и любое другое сообщение, не имеющее изображения предварительного просмотра."</string>
     <string name="settings_font_title">"Шрифт"</string>
     <string name="settings_preview_font_title">"Предпросмотр шрифтов"</string>
     <string name="settings_font_summary">"Шрифт"</string>
