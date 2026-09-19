@@ -138,6 +138,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     override fun onCreateMediaView(inflater: LayoutInflater, container: ViewGroup) {
         val binding = ShadowboxMediaVideoBinding.inflate(inflater, container, true)
         _binding = binding
+        attachControls(binding.playbackControlsShadowbox, container.parent as ViewGroup)
         binding.playerViewShadowboxMediaVideo.setOnClickListener { togglePlayback() }
         binding.playerViewShadowboxMediaVideo.setOnLongClickListener { toggleChrome(); true }
         binding.progressBarShadowboxMediaVideo.visibility = View.INVISIBLE
@@ -726,6 +727,12 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     }
 
     companion object {
+        /** Keep seeking above the caption scrim, while retaining the same page and gestures. */
+        internal fun attachControls(controls: View, overlay: ViewGroup) {
+            (controls.parent as? ViewGroup)?.removeView(controls)
+            overlay.addView(controls)
+        }
+
         private const val TAG = "ShadowboxVideoPage"
         private const val POSTER_FADE_MS = 150L
         private const val ARG_URI = "AU"

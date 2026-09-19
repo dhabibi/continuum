@@ -51,6 +51,7 @@ class ShadowboxLayoutCaptureTest {
         page.root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.rgb(11, 45, 57), Color.rgb(30, 35, 50), Color.BLACK))
         val video = ShadowboxMediaVideoBinding.inflate(activity.layoutInflater, page.mediaContainerShadowboxPageFragment, true)
+        ShadowboxVideoPageFragment.attachControls(video.playbackControlsShadowbox, page.root)
         video.root.setBackgroundColor(Color.TRANSPARENT)
         video.playerViewShadowboxMediaVideo.visibility = View.INVISIBLE
         video.previewImageViewShadowboxMediaVideo.visibility = View.GONE
