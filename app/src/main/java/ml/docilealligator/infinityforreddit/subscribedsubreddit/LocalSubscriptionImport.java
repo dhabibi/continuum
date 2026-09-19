@@ -49,9 +49,9 @@ public final class LocalSubscriptionImport {
                 if (name.isEmpty() || !id.startsWith("t5_") || data.isNull("subscribers")) {
                     continue;
                 }
-                String icon = data.optString("community_icon", "");
-                if (icon.isEmpty()) {
-                    icon = data.optString("icon_img", "");
+                String icon = data.isNull("community_icon") ? "" : data.getString("community_icon");
+                if (icon.isEmpty() && !data.isNull("icon_img")) {
+                    icon = data.getString("icon_img");
                 }
                 resolved.put(name.toLowerCase(Locale.ROOT), new SubscribedSubredditData(
                         id, name, icon, Account.ANONYMOUS_ACCOUNT, false));

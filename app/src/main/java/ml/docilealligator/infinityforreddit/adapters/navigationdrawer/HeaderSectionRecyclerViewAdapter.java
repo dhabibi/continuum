@@ -22,6 +22,7 @@ import java.util.concurrent.Executor;
 import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
 import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.account.Account;
+import ml.docilealligator.infinityforreddit.account.LocalProfiles;
 import ml.docilealligator.infinityforreddit.activities.BaseActivity;
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper;
 import ml.docilealligator.infinityforreddit.databinding.NavHeaderMainBinding;
@@ -109,8 +110,9 @@ public class HeaderSectionRecyclerViewAdapter extends RecyclerView.Adapter<Recyc
                     glide.load(bannerImageUrl).into(((NavHeaderViewHolder) holder).binding.bannerImageViewNavHeaderMain);
                 }
             } else {
-                ((NavHeaderViewHolder) holder).binding.karmaTextViewNavHeaderMain.setText(R.string.press_here_to_login);
-                ((NavHeaderViewHolder) holder).binding.nameTextViewNavHeaderMain.setText(R.string.anonymous_account);
+                ((NavHeaderViewHolder) holder).binding.karmaTextViewNavHeaderMain.setText(R.string.local_account_switch_hint);
+                ((NavHeaderViewHolder) holder).binding.nameTextViewNavHeaderMain.setText(baseActivity.getString(
+                        R.string.local_account_header, LocalProfiles.get(baseActivity).getCurrentName()));
                 glide.load(R.drawable.subreddit_default_icon)
                         .transform(new RoundedCornersTransformation(144, 0))
                         .into(((NavHeaderViewHolder) holder).binding.profileImageViewNavHeaderMain);

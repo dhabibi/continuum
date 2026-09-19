@@ -278,7 +278,7 @@ object AccountSettingsMigration {
         }
 
     private fun file(context: Context, name: String): SharedPreferences =
-        context.getSharedPreferences(name, Context.MODE_PRIVATE)
+        context.getSharedPreferences(LocalProfiles.get(context).preferenceFileName(name), Context.MODE_PRIVATE)
 
     /**
      * Gives every existing account its own copy of the settings that have just become per-account,

@@ -10,6 +10,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SearchView;
@@ -119,6 +120,14 @@ public class SearchSubredditsResultActivity extends BaseActivity implements Acti
         if (browse) {
             setTitle(R.string.find_subreddits);
             binding.searchViewSubreddits.setVisibility(View.VISIBLE);
+            binding.searchViewSubreddits.setBackgroundColor(mCustomThemeWrapper.getBackgroundColor());
+            for (int id : new int[]{androidx.appcompat.R.id.search_mag_icon, androidx.appcompat.R.id.search_close_btn,
+                    androidx.appcompat.R.id.search_go_btn, androidx.appcompat.R.id.search_voice_btn}) {
+                ImageView icon = binding.searchViewSubreddits.findViewById(id);
+                if (icon != null) {
+                    icon.setColorFilter(mCustomThemeWrapper.getPrimaryIconColor());
+                }
+            }
             SearchView.SearchAutoComplete input = binding.searchViewSubreddits.findViewById(androidx.appcompat.R.id.search_src_text);
             if (input != null) {
                 input.setTextColor(mCustomThemeWrapper.getPrimaryTextColor());

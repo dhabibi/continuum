@@ -12,6 +12,7 @@ import androidx.room.TypeConverters;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
+import ml.docilealligator.infinityforreddit.account.LocalProfiles;
 import ml.docilealligator.infinityforreddit.account.AccountDao;
 import ml.docilealligator.infinityforreddit.account.AccountDaoKt;
 import ml.docilealligator.infinityforreddit.apimonitor.ApiCallRecord;
@@ -70,8 +71,12 @@ public abstract class RedditDataRoomDatabase extends RoomDatabase {
     public static final String DATABASE_NAME = "reddit_data";
 
     public static RedditDataRoomDatabase create(final Context context) {
+        return createForLocalProfile(context, LocalProfiles.get(context).getCurrentId());
+    }
+
+    public static RedditDataRoomDatabase createForLocalProfile(final Context context, String profileId) {
         return Room.databaseBuilder(context.getApplicationContext(),
-                        RedditDataRoomDatabase.class, DATABASE_NAME)
+                        RedditDataRoomDatabase.class, LocalProfiles.storageName(DATABASE_NAME, profileId))
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
                         MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
                         MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,

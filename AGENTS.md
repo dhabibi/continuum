@@ -9,6 +9,13 @@ This repository is Daniel's Continuum fork and the canonical source for its Redd
 proxy. `upstream` is cygnusx-1-org/continuum; push changes only to `origin`.
 Read `intent.md` and the local `current_state.md` before substantive work.
 
+Local accounts reuse the anonymous implementation in separate Room databases;
+see `architecture.md`. `LocalProfiles` fixes the storage identity for a process
+and switching reopens Home through the existing restart helper. Keep new account
+identity/navigation caches in that partition and preserve Default's original
+files. Do not mutate `Account.ANONYMOUS_ACCOUNT` or bypass the profile-aware
+database, preference and feed/resume cache entry points.
+
 The Android app is under `app/`. Keep the API Base URL setting in the existing
 API Keys screen, with the existing overrides switch and restart behavior.
 The proxy lives in `deploy/reddit-proxy/`; its supporting deployment is on

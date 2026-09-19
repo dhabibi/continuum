@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import ml.docilealligator.infinityforreddit.account.Account;
+import ml.docilealligator.infinityforreddit.account.LocalProfiles;
 import ml.docilealligator.infinityforreddit.account.AccountScopedKeys;
 import ml.docilealligator.infinityforreddit.account.AccountScopedSharedPreferences;
 import ml.docilealligator.infinityforreddit.apimonitor.ApiCallTracker;
@@ -129,13 +130,15 @@ abstract class AppModule {
     @Provides
     @Named("post_feed_scrolled_position_cache")
     static SharedPreferences providePostFeedScrolledPositionSharedPreferences(Application application) {
-        return application.getSharedPreferences(SharedPreferencesUtils.FRONT_PAGE_SCROLLED_POSITION_SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        return application.getSharedPreferences(LocalProfiles.get(application).storageName(
+                SharedPreferencesUtils.FRONT_PAGE_SCROLLED_POSITION_SHARED_PREFERENCES_FILE), Context.MODE_PRIVATE);
     }
 
     @Provides
     @Named("main_activity_tabs")
     static SharedPreferences provideMainActivityTabsSharedPreferences(Application application) {
-        return application.getSharedPreferences(SharedPreferencesUtils.MAIN_PAGE_TABS_SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        return application.getSharedPreferences(LocalProfiles.get(application).preferenceFileName(
+                SharedPreferencesUtils.MAIN_PAGE_TABS_SHARED_PREFERENCES_FILE), Context.MODE_PRIVATE);
     }
 
     @Provides
@@ -175,7 +178,8 @@ abstract class AppModule {
     @Provides
     @Named("current_account")
     static SharedPreferences provideCurrentAccountSharedPreferences(Application application) {
-        return application.getSharedPreferences(SharedPreferencesUtils.CURRENT_ACCOUNT_SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE);
+        return application.getSharedPreferences(LocalProfiles.get(application).storageName(
+                SharedPreferencesUtils.CURRENT_ACCOUNT_SHARED_PREFERENCES_FILE), Context.MODE_PRIVATE);
     }
 
     @Provides

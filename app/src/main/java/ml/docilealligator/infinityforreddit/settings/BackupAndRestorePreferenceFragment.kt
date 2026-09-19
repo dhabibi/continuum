@@ -21,6 +21,7 @@ import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Named
 import ml.docilealligator.infinityforreddit.Infinity
+import ml.docilealligator.infinityforreddit.account.LocalProfiles
 import ml.docilealligator.infinityforreddit.R
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase
 import ml.docilealligator.infinityforreddit.asynctasks.BackupSettings
@@ -108,6 +109,12 @@ class BackupAndRestorePreferenceFragment : CustomFontPreferenceFragmentCompat() 
             findPreference<Preference>(SharedPreferencesUtils.BACKUP_SETTINGS)
         val restoreSettingsPreference =
             findPreference<Preference>(SharedPreferencesUtils.RESTORE_SETTINGS)
+
+        val profiles = LocalProfiles.get(mActivity)
+        if (profiles.profiles.size > 1) {
+            backupSettingsPreference?.summary = getString(R.string.local_account_backup_scope, profiles.currentName)
+            restoreSettingsPreference?.summary = getString(R.string.local_account_restore_scope, profiles.currentName)
+        }
 
         backupSettingsPreference?.setOnPreferenceClickListener {
             showPasswordDialog()

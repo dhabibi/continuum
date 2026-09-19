@@ -37,7 +37,7 @@ object AnonymousAccountRename {
     @JvmStatic
     fun migrate(context: Context) {
         renameCurrentAccount(context.getSharedPreferences(
-            SharedPreferencesUtils.CURRENT_ACCOUNT_SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE))
+            LocalProfiles.get(context).storageName(SharedPreferencesUtils.CURRENT_ACCOUNT_SHARED_PREFERENCES_FILE), Context.MODE_PRIVATE))
         moveAnonymousHomeSortKeys(context)
     }
 

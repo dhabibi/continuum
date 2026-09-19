@@ -5,11 +5,13 @@ import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import ml.docilealligator.infinityforreddit.R
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase
+import ml.docilealligator.infinityforreddit.account.LocalProfiles
 import ml.docilealligator.infinityforreddit.activities.ViewPostDetailActivity
 import ml.docilealligator.infinityforreddit.broadcastreceivers.ReminderAlarmReceiver
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper
@@ -22,16 +24,28 @@ class ReminderManager(
     private val alarmManager: AlarmManager,
     private val customThemeWrapper: CustomThemeWrapper
 ) {
+    private val profileId = LocalProfiles.get(applicationContext).currentId
+
     suspend fun setReminder(reminder: Reminder) {
         redditRoomDatabase.reminderDao().insert(reminder)
         setAlarm(reminder)
     }
 
     fun setAlarm(reminder: Reminder) {
-        val alarmIntent = Intent(
-            applicationContext,
-            ReminderAlarmReceiver::class.java
-        ).let { intent ->
+        setAlarm(reminder, profileId)
+    }
+
+    private fun receiverIntent(owner: String): Intent =
+        Intent(applicationContext, ReminderAlarmReceiver::class.java).apply {
+            // Preserve existing Default-account alarms; other accounts need a distinct identity.
+            if (owner != LocalProfiles.DEFAULT_ID) {
+                data = Uri.parse("continuum-local-reminder:$owner")
+            }
+            putExtra(ReminderAlarmReceiver.EXTRA_LOCAL_PROFILE, owner)
+        }
+
+    private fun setAlarm(reminder: Reminder, owner: String) {
+        val alarmIntent = receiverIntent(owner).let { intent ->
             intent.putExtra(ReminderAlarmReceiver.EXTRA_REMINDER, reminder)
             PendingIntent.getBroadcast(
                 applicationContext, reminder.createdAt.toInt(), intent,
@@ -53,16 +67,27 @@ class ReminderManager(
     }
 
     suspend fun checkAndSetAllAlarmsSync() {
-        for (reminder in redditRoomDatabase.reminderDao().getAllReminders()) {
-            if (PendingIntent.getBroadcast(applicationContext, reminder.createdAt.toInt(), Intent(
-                    applicationContext,
-                    ReminderAlarmReceiver::class.java
-                ), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE) == null) {
+        // A boot or account switch must also restore alarms belonging to inactive accounts.
+        for (profile in LocalProfiles.get(applicationContext).profiles) {
+            val database = if (profile.id == profileId) redditRoomDatabase
+                else RedditDataRoomDatabase.createForLocalProfile(applicationContext, profile.id)
+            try {
+                checkAndSetAlarms(database, profile.id)
+            } finally {
+                if (database !== redditRoomDatabase) database.close()
+            }
+        }
+    }
+
+    private suspend fun checkAndSetAlarms(database: RedditDataRoomDatabase, owner: String) {
+        for (reminder in database.reminderDao().getAllReminders()) {
+            if (PendingIntent.getBroadcast(applicationContext, reminder.createdAt.toInt(), receiverIntent(owner),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE) == null) {
                 if (System.currentTimeMillis() >= reminder.reminderTime) {
                     sendNotification(applicationContext, customThemeWrapper, reminder)
-                    redditRoomDatabase.reminderDao().deleteReminder(reminder)
+                    database.reminderDao().deleteReminder(reminder)
                 } else {
-                    setAlarm(reminder)
+                    setAlarm(reminder, owner)
                 }
             }
         }

@@ -20,6 +20,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import ml.docilealligator.infinityforreddit.BuildConfig
 import ml.docilealligator.infinityforreddit.account.Account
+import ml.docilealligator.infinityforreddit.account.LocalProfiles
 import ml.docilealligator.infinityforreddit.account.AccountScope
 import ml.docilealligator.infinityforreddit.account.AccountScopedSharedPreferences
 import ml.docilealligator.infinityforreddit.activities.MainActivity
@@ -481,7 +482,7 @@ object ResumeState {
     private fun currentAccount(context: Context): String =
         context
             .getSharedPreferences(
-                SharedPreferencesUtils.CURRENT_ACCOUNT_SHARED_PREFERENCES_FILE,
+                LocalProfiles.get(context).storageName(SharedPreferencesUtils.CURRENT_ACCOUNT_SHARED_PREFERENCES_FILE),
                 Context.MODE_PRIVATE,
             )
             .getString(SharedPreferencesUtils.ACCOUNT_NAME, Account.ANONYMOUS_ACCOUNT)
@@ -931,7 +932,7 @@ object ResumeState {
             // changed rather than when it was last looked at. Nothing reads it yet; it is written
             // so a TTL could be added without a version bump.
             document.put(KEY_SAVED_AT, System.currentTimeMillis())
-            File(context.filesDir, FILE_NAME).writeText(document.toString())
+            File(LocalProfiles.get(context).filesDir(context), FILE_NAME).writeText(document.toString())
             lastWritten = fingerprint
         } catch (e: JSONException) {
             // Nothing to do but leave the previous snapshot in place.
@@ -1158,7 +1159,7 @@ object ResumeState {
             lastWritten = null
         }
         FeedCache.clearAccount(account)
-        val file = File(context.filesDir, FILE_NAME)
+        val file = File(LocalProfiles.get(context).filesDir(context), FILE_NAME)
         if (!file.exists()) {
             return
         }
@@ -1185,7 +1186,7 @@ object ResumeState {
         loaded = true
         loadedAccount = account
         restoring = null
-        val file = File(context.filesDir, FILE_NAME)
+        val file = File(LocalProfiles.get(context).filesDir(context), FILE_NAME)
         if (!file.exists()) {
             return
         }

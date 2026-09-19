@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.subscribedsubreddit
 
+import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase
 import ml.docilealligator.infinityforreddit.account.Account
@@ -13,10 +14,12 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
 
 @RunWith(RobolectricTestRunner::class)
+@Config(application = Application::class, sdk = [34])
 class LocalSubscriptionImportTest {
     private val database = RedditDataRoomDatabase.createInMemoryForTest(ApplicationProvider.getApplicationContext())
     private val anonymous = Account.ANONYMOUS_ACCOUNT

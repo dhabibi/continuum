@@ -23,7 +23,7 @@ public class AccountManagementSectionRecyclerViewAdapter extends RecyclerView.Ad
     private static final int VIEW_TYPE_MENU_ITEM = 2;
 
     private final BaseActivity baseActivity;
-    private ArrayList<Account> accounts;
+    private ArrayList<Account> accounts = new ArrayList<>();
     private final RequestManager glide;
     private final int primaryTextColor;
     private final int primaryIconColor;
@@ -72,21 +72,19 @@ public class AccountManagementSectionRecyclerViewAdapter extends RecyclerView.Ad
             int stringId = 0;
             int drawableId = 0;
 
-            if (isLoggedIn) {
-                int offset = accounts == null ? 0 : accounts.size();
-                if (position == offset) {
-                    stringId = R.string.add_account;
-                    drawableId = R.drawable.ic_add_circle_outline_day_night_24dp;
-                } else if (position == offset + 1) {
-                    stringId = R.string.anonymous_account;
-                    drawableId = R.drawable.ic_anonymous_day_night_24dp;
-                } else if (position == offset + 2) {
-                    stringId = R.string.log_out;
-                    drawableId = R.drawable.ic_log_out_day_night_24dp;
-                }
-            } else {
+            int offset = position - accounts.size();
+            if (offset == 0) {
+                stringId = R.string.local_accounts;
+                drawableId = R.drawable.ic_anonymous_day_night_24dp;
+            } else if (offset == 1) {
                 stringId = R.string.add_account;
                 drawableId = R.drawable.ic_add_circle_outline_day_night_24dp;
+            } else if (offset == 2) {
+                stringId = R.string.anonymous_account;
+                drawableId = R.drawable.ic_anonymous_day_night_24dp;
+            } else if (offset == 3) {
+                stringId = R.string.log_out;
+                drawableId = R.drawable.ic_log_out_day_night_24dp;
             }
 
             if (stringId != 0) {
@@ -104,23 +102,11 @@ public class AccountManagementSectionRecyclerViewAdapter extends RecyclerView.Ad
 
     @Override
     public int getItemCount() {
-        if (isLoggedIn) {
-            if (accounts != null && !accounts.isEmpty()) {
-                return 3 + accounts.size();
-            } else {
-                return 3;
-            }
-        } else {
-            if (accounts != null && !accounts.isEmpty()) {
-                return 1 + accounts.size();
-            } else {
-                return 1;
-            }
-        }
+        return accounts.size() + (isLoggedIn ? 4 : 2);
     }
 
     public void changeAccountsDataset(List<Account> accounts) {
-        this.accounts = (ArrayList<Account>) accounts;
+        this.accounts = new ArrayList<>(accounts);
         notifyDataSetChanged();
     }
 

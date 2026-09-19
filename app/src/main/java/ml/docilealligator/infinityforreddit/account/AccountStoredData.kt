@@ -93,7 +93,7 @@ object AccountStoredData {
     @JvmStatic
     fun deleteFrontPageScrolledPosition(context: Context, accountName: String?) {
         context.getSharedPreferences(
-            SharedPreferencesUtils.FRONT_PAGE_SCROLLED_POSITION_SHARED_PREFERENCES_FILE,
+            LocalProfiles.get(context).storageName(SharedPreferencesUtils.FRONT_PAGE_SCROLLED_POSITION_SHARED_PREFERENCES_FILE),
             Context.MODE_PRIVATE)
             .edit()
             .remove(AccountScope.namespace(accountName) +

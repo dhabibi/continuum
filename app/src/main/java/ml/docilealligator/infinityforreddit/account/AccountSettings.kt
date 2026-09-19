@@ -260,7 +260,7 @@ object AccountSettings {
         if (fileName == AccountScopedKeys.DEFAULT_PREFERENCES) {
             PreferenceManager.getDefaultSharedPreferences(context)
         } else {
-            context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
+            context.getSharedPreferences(LocalProfiles.get(context).preferenceFileName(fileName), Context.MODE_PRIVATE)
         }
 
     private fun put(editor: SharedPreferences.Editor, target: String, value: Any?): Boolean {

@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import ml.docilealligator.infinityforreddit.Infinity
 import ml.docilealligator.infinityforreddit.R
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase
+import ml.docilealligator.infinityforreddit.account.LocalProfiles
 import ml.docilealligator.infinityforreddit.activities.ViewPostDetailActivity
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper
 import ml.docilealligator.infinityforreddit.reminder.Reminder
@@ -38,7 +39,14 @@ class ReminderAlarmReceiver: BroadcastReceiver() {
 
             doAsync(GlobalScope) {
                 try {
-                    mRedditRoomDatabase.reminderDao().deleteReminder(it)
+                    val owner = intent.getStringExtra(EXTRA_LOCAL_PROFILE) ?: LocalProfiles.DEFAULT_ID
+                    val database = if (owner == LocalProfiles.get(context).currentId) mRedditRoomDatabase
+                        else RedditDataRoomDatabase.createForLocalProfile(context, owner)
+                    try {
+                        database.reminderDao().deleteReminder(it)
+                    } finally {
+                        if (database !== mRedditRoomDatabase) database.close()
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -48,6 +56,7 @@ class ReminderAlarmReceiver: BroadcastReceiver() {
 
     companion object {
         const val EXTRA_REMINDER = "ER"
+        const val EXTRA_LOCAL_PROFILE = "ELP"
     }
 }
 

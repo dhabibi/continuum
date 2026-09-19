@@ -7,6 +7,7 @@ import java.io.File
 import java.util.concurrent.Executors
 import ml.docilealligator.infinityforreddit.Infinity
 import ml.docilealligator.infinityforreddit.account.AccountScope
+import ml.docilealligator.infinityforreddit.account.LocalProfiles
 import ml.docilealligator.infinityforreddit.postfilter.PostFilter
 import ml.docilealligator.infinityforreddit.readpost.ReadPostsListInterface
 import ml.docilealligator.infinityforreddit.utils.JSONUtils
@@ -90,7 +91,7 @@ object FeedCache {
     )
 
     private fun rootDir(): File? =
-        Infinity.getAppContext()?.let { File(it.filesDir, CACHE_SUBDIR) }
+        Infinity.getAppContext()?.let { File(LocalProfiles.get(it).filesDir(it), CACHE_SUBDIR) }
 
     /**
      * Entries are filed under the account that made them, so one account can be forgotten without

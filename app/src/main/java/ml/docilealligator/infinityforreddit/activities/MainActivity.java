@@ -79,6 +79,7 @@ import ml.docilealligator.infinityforreddit.R;
 import ml.docilealligator.infinityforreddit.RecyclerViewContentScrollingInterface;
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase;
 import ml.docilealligator.infinityforreddit.account.Account;
+import ml.docilealligator.infinityforreddit.account.LocalProfilesDialog;
 import ml.docilealligator.infinityforreddit.account.AccountScope;
 import ml.docilealligator.infinityforreddit.account.AccountViewModel;
 import ml.docilealligator.infinityforreddit.adapters.SubredditAutocompleteRecyclerViewAdapter;
@@ -1079,6 +1080,8 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                             intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, accountName);
                         } else if (stringId == R.string.subscriptions) {
                             intent = new Intent(MainActivity.this, SubscribedThingListingActivity.class);
+                        } else if (stringId == R.string.local_accounts) {
+                            LocalProfilesDialog.show(MainActivity.this);
                         } else if (stringId == R.string.find_subreddits) {
                             intent = new Intent(MainActivity.this, SearchSubredditsResultActivity.class);
                             intent.putExtra(SearchSubredditsResultActivity.EXTRA_BROWSE, true);

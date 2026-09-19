@@ -76,7 +76,7 @@ public class AccountSectionRecyclerViewAdapter extends RecyclerView.Adapter<Recy
 
     /** Menu rows below the group title, which varies with login state and the Recently Visited setting. */
     private int menuItemCount() {
-        return baseMenuItemCount() + 1 + expandedItemCount();
+        return baseMenuItemCount() + 2 + expandedItemCount();
     }
 
     private int baseMenuItemCount() {
@@ -157,7 +157,10 @@ public class AccountSectionRecyclerViewAdapter extends RecyclerView.Adapter<Recy
             int drawableId = 0;
             boolean setOnClickListener = true;
 
-            if (menuPosition == baseMenuItemCount() + 1) {
+            if (menuPosition == baseMenuItemCount() + 2) {
+                stringId = R.string.local_accounts;
+                drawableId = R.drawable.ic_anonymous_day_night_24dp;
+            } else if (menuPosition == baseMenuItemCount() + 1) {
                 stringId = R.string.find_subreddits;
                 drawableId = R.drawable.ic_search_toolbar_24dp;
             } else if (isLoggedIn) {

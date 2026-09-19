@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import ml.docilealligator.infinityforreddit.Infinity;
+import ml.docilealligator.infinityforreddit.account.LocalProfiles;
 import ml.docilealligator.infinityforreddit.post.ParsePost;
 import ml.docilealligator.infinityforreddit.post.Post;
 import ml.docilealligator.infinityforreddit.postfilter.PostFilter;
@@ -51,7 +52,7 @@ public final class SavedPostCache {
     @Nullable
     private static SharedPreferences prefs() {
         Context c = Infinity.getAppContext();
-        return c == null ? null : c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        return c == null ? null : c.getSharedPreferences(LocalProfiles.get(c).storageName(PREFS), Context.MODE_PRIVATE);
     }
 
     private static String key(String username, @Nullable String category) {
@@ -59,7 +60,7 @@ public final class SavedPostCache {
     }
 
     private static File cacheFile(Context context, String key) {
-        File dir = new File(context.getCacheDir(), CACHE_SUBDIR);
+        File dir = new File(LocalProfiles.get(context).cacheDir(context), CACHE_SUBDIR);
         return new File(dir, sanitize(key) + ".json");
     }
 
@@ -171,7 +172,7 @@ public final class SavedPostCache {
         } catch (JSONException e) {
             return;
         }
-        File dir = new File(context.getCacheDir(), CACHE_SUBDIR);
+        File dir = new File(LocalProfiles.get(context).cacheDir(context), CACHE_SUBDIR);
         if (!dir.exists() && !dir.mkdirs()) {
             return;
         }
@@ -228,7 +229,7 @@ public final class SavedPostCache {
             if (context == null) {
                 return;
             }
-            File dir = new File(context.getCacheDir(), CACHE_SUBDIR);
+            File dir = new File(LocalProfiles.get(context).cacheDir(context), CACHE_SUBDIR);
             File[] files = dir.listFiles();
             if (files != null) {
                 for (File f : files) {
