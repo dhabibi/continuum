@@ -2,13 +2,18 @@ package ml.docilealligator.infinityforreddit.shadowbox
 
 import android.net.Uri
 import android.os.Bundle
+import android.text.format.DateUtils
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.SeekBar
 import androidx.annotation.OptIn
+import androidx.core.graphics.Insets
 import androidx.core.net.toUri
+import androidx.core.view.updateLayoutParams
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -87,6 +92,17 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     private var trackSelector: DefaultTrackSelector? = null
     private var playerListener: Player.Listener? = null
     private var isMute = false
+    private var volume = 1f
+    private var scrubbing = false
+    private var panelHeight = 0
+    private var systemInsets = Insets.NONE
+    private val updateProgress = object : Runnable {
+        override fun run() {
+            updateTimeline()
+            val controls = _binding?.playbackControlsShadowbox ?: return
+            if (pageActive && controls.visibility == View.VISIBLE) controls.postDelayed(this, 250)
+        }
+    }
 
     /**
      * Whether this is the Reddit-hosted HLS stream, which is the only thing here with a track
@@ -110,16 +126,6 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
 
     /** Whether this is the page in front. Nothing plays on any other page. */
     private var pageActive = false
-
-    /** Whether this video may start on its own, per the app's own video autoplay settings. */
-    private var autoplay = false
-
-    /**
-     * Set when the user presses play, cleared when they leave the page. Leaving is what makes a
-     * pause a pause: come back and the video is where it was, stopped, waiting to be started
-     * again -- not resumed out from under the user because it happened to be playing earlier.
-     */
-    private var startedByUser = false
 
     /** Set when the user presses pause, so autoplay does not start it up again behind their back. */
     private var userPaused = false
@@ -147,20 +153,57 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     }
 
     override fun onCreateMediaView(inflater: LayoutInflater, container: ViewGroup) {
-        // Not onCreate: the autoplay rule reads the post, which the base class sets just before
-        // this runs.
-        autoplay = shouldAutoplay()
         val binding = ShadowboxMediaVideoBinding.inflate(inflater, container, true)
         _binding = binding
         binding.playerViewShadowboxMediaVideo.setOnClickListener { toggleChrome() }
         binding.progressBarShadowboxMediaVideo.visibility = View.INVISIBLE
         binding.playButtonShadowboxMediaVideo.setOnClickListener { togglePlayback() }
         binding.playbackErrorLinearLayoutShadowboxMediaVideo.setOnClickListener { retryPlayback() }
+        binding.seekBackShadowbox.setOnClickListener { player?.seekBack(); updateTimeline() }
+        binding.seekForwardShadowbox.setOnClickListener { player?.seekForward(); updateTimeline() }
+        binding.seekPositionShadowbox.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                scrubbing = true
+                seekBar.parent.requestDisallowInterceptTouchEvent(true)
+            }
+
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    val duration = player?.duration ?: 0
+                    if (duration > 0) binding.playbackPositionShadowbox.text = formatTime(duration * progress / 10000)
+                }
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                val duration = player?.duration ?: 0
+                if (duration > 0) player?.seekTo(duration * seekBar.progress / 10000)
+                scrubbing = false
+                seekBar.parent.requestDisallowInterceptTouchEvent(false)
+                updateTimeline()
+            }
+        })
+        binding.volumeShadowbox.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(seekBar: SeekBar) {
+                seekBar.parent.requestDisallowInterceptTouchEvent(true)
+            }
+            override fun onStopTrackingTouch(seekBar: SeekBar) {
+                seekBar.parent.requestDisallowInterceptTouchEvent(false)
+            }
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) setVolume(progress / 100f)
+            }
+        })
+        binding.muteShadowbox.setOnClickListener { toggleMute() }
+        host.typeface?.let {
+            binding.playbackPositionShadowbox.typeface = it
+            binding.playbackDurationShadowbox.typeface = it
+        }
     }
 
     override fun loadMedia() {
         showPoster()
         isMute = initialMuteState()
+        volume = if (isMute) 0f else 1f
         buildPlayer()
     }
 
@@ -187,6 +230,9 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             .setRenderersFactory(DefaultRenderersFactory(host).setEnableDecoderFallback(true))
             .setSeekBackIncrementMs(Constants.VIDEO_SEEK_BACK_INCREMENT_MS)
             .setSeekForwardIncrementMs(Constants.VIDEO_SEEK_FORWARD_INCREMENT_MS)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
+            .setHandleAudioBecomingNoisy(true)
             .build()
         this.player = player
         binding.playerViewShadowboxMediaVideo.player = DurationAwareSeekPlayer(player)
@@ -197,11 +243,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         isRedditHls = Util.inferContentType(playbackUri) == C.CONTENT_TYPE_HLS
         player.setMediaSource(buildMediaSource(playbackUri))
 
-        player.repeatMode = if (sharedPreferences.getBoolean(SharedPreferencesUtils.LOOP_VIDEO, true)) {
-            Player.REPEAT_MODE_ALL
-        } else {
-            Player.REPEAT_MODE_OFF
-        }
+        player.repeatMode = Player.REPEAT_MODE_ONE
         // "Default Playback Speed", stored as a percentage, the way ViewVideoActivity applies it.
         val playbackSpeed = SharedPreferencesUtils.getInt(
             sharedPreferences, SharedPreferencesUtils.DEFAULT_PLAYBACK_SPEED, "100"
@@ -214,6 +256,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
                 val binding = _binding ?: return
                 binding.progressBarShadowboxMediaVideo.visibility =
                     if (playbackState == Player.STATE_BUFFERING) View.VISIBLE else View.INVISIBLE
+                updateTimeline()
             }
 
             override fun onTracksChanged(tracks: Tracks) {
@@ -222,6 +265,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
                 val hasAudio = tracks.groups.any { group ->
                     group.length > 0 && group.getTrackFormat(0).sampleMimeType?.contains("audio") == true
                 }
+                _binding?.volumeRowShadowbox?.visibility = if (hasAudio) View.VISIBLE else View.GONE
                 if (hasAudio) {
                     panel?.showMuteControl(isMute) { toggleMute() }
                 } else {
@@ -278,6 +322,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         // Ahead of the early return: a page whose player is already gone can still have a pending
         // hide posted on its button, and onDestroyView comes through here.
         _binding?.playButtonShadowboxMediaVideo?.removeCallbacks(hidePlayButton)
+        _binding?.playbackControlsShadowbox?.removeCallbacks(updateProgress)
         val player = player ?: return
         if (!playbackFailed) {
             resumePositionMs = player.currentPosition
@@ -394,14 +439,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         ) ?: source
     }
 
-    /**
-     * Whether this video starts muted.
-     *
-     * "Mute Video" and "Mute NSFW Video" are the standing instructions and come first. Under them
-     * sits the feed's rule: with "Remember Muting Option in Post Feed" on, the last choice the
-     * user made with a mute button wins, and otherwise a video that starts on its own follows
-     * "Mute Autoplaying Videos" while one the user pressed play on is a video they chose to watch.
-     */
+    /** Explicit mute settings seed the session; its volume controls carry across video pages. */
     private fun initialMuteState(): Boolean {
         if (sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_VIDEO, false)) {
             return true
@@ -410,7 +448,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             return true
         }
         videoMuteManager.getMasterMutingOption()?.let { return it }
-        return autoplay && sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_AUTOPLAYING_VIDEOS, true)
+        return false
     }
 
     /**
@@ -503,19 +541,12 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         }
     }
 
-    /**
-     * The single rule for whether this video runs: it is the page in front, the user has not
-     * paused it, and either autoplay is on or they pressed play during this visit to the page.
-     *
-     * Everything that can change playback -- the pager moving, the screen going away and coming
-     * back, the play button -- sets one of those and calls this, rather than each deciding for
-     * itself whether to start the player again. Deciding it in several places is what let a video
-     * that had been swiped away from pick straight up again on the way back.
-     */
+    /** Only the visible page plays. A manual pause remains until the user presses play. */
     private fun applyPlayback() {
         val player = player ?: return
-        player.playWhenReady = pageActive && !userPaused && (autoplay || startedByUser)
+        player.playWhenReady = pageActive && !userPaused
         showPlayButton()
+        updateControls()
     }
 
     /** Brings the play button back and, if the video is playing, starts its clock again. */
@@ -580,16 +611,16 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         posterHidden = true
         binding.playbackErrorLinearLayoutShadowboxMediaVideo.visibility = View.VISIBLE
         updatePlayButton()
+        updateControls()
     }
 
     /**
      * The tap on the error overlay: a fresh player on the file the page started from, from the
-     * start. The tap is also a request to watch, so with autoplay off it counts as pressing play.
+     * start. The tap also clears a manual pause.
      * The failure was as likely the device's as the file's -- a decoder that was busy elsewhere --
      * so both fallback walks get another go.
      */
     private fun retryPlayback() {
-        startedByUser = true
         userPaused = false
         releasePlayer()
         resumePositionMs = C.TIME_UNSET
@@ -601,9 +632,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         val player = player ?: return
         if (player.playWhenReady) {
             userPaused = true
-            startedByUser = false
         } else {
-            startedByUser = true
             userPaused = false
         }
         applyPlayback()
@@ -638,33 +667,87 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
 
     override fun onChromeVisibilityChanged(visible: Boolean) {
         showPlayButton()
+        updateControls()
     }
 
     private fun applyMute() {
-        player?.volume = if (isMute) 0f else 1f
+        player?.volume = volume
+        isMute = volume == 0f
         panel?.setMuted(isMute)
+        _binding?.volumeShadowbox?.progress = (volume * 100).toInt()
+        _binding?.muteShadowbox?.setImageResource(if (isMute) R.drawable.ic_volume_off_32dp else R.drawable.ic_volume_up_32dp)
     }
 
     private fun toggleMute() {
-        isMute = !isMute
-        // Stored only when "Remember Muting Option in Post Feed" is on; the manager drops the
-        // write otherwise, so unmuting one video cannot clear "Mute Autoplaying Videos" for good.
-        videoMuteManager.isMuted = isMute
-        applyMute()
+        setVolume(if (volume > 0f) 0f else host.lastAudibleVolume)
     }
 
     override fun onPageActive() {
-        // Autoplay off means the page comes up paused behind the play button. A video the user
-        // started and then swiped away from comes back paused too, at the frame it stopped on.
         pageActive = true
+        if (host.playbackVolume == null) host.playbackVolume = volume
+        volume = if (post.isNSFW && sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_NSFW_VIDEO, false)) {
+            0f
+        } else {
+            host.playbackVolume ?: volume
+        }
+        applyMute()
         applyPlayback()
+    }
+
+    private fun setVolume(value: Float) {
+        volume = value.coerceIn(0f, 1f)
+        host.playbackVolume = volume
+        if (volume > 0f) host.lastAudibleVolume = volume
+        applyMute()
+    }
+
+    private fun updateControls() {
+        val controls = _binding?.playbackControlsShadowbox ?: return
+        controls.removeCallbacks(updateProgress)
+        controls.visibility = if (pageActive && !playbackFailed && host.panelVisible.value != false) View.VISIBLE else View.GONE
+        if (controls.visibility == View.VISIBLE) updateProgress.run()
+    }
+
+    private fun updateTimeline() {
+        val binding = _binding ?: return
+        val player = player ?: return
+        val duration = player.duration
+        val seekable = duration > 0 && player.isCurrentMediaItemSeekable
+        binding.seekPositionShadowbox.isEnabled = seekable
+        binding.seekBackShadowbox.isEnabled = seekable
+        binding.seekForwardShadowbox.isEnabled = seekable
+        binding.playbackDurationShadowbox.text = if (duration > 0) formatTime(duration) else "--:--"
+        if (!scrubbing) {
+            binding.playbackPositionShadowbox.text = formatTime(player.currentPosition)
+            binding.seekPositionShadowbox.progress = if (duration > 0) (player.currentPosition * 10000 / duration).toInt().coerceIn(0, 10000) else 0
+        }
+        binding.seekPositionShadowbox.secondaryProgress = if (duration > 0) (player.bufferedPosition * 10000 / duration).toInt().coerceIn(0, 10000) else 0
+    }
+
+    private fun formatTime(milliseconds: Long): String = DateUtils.formatElapsedTime(milliseconds.coerceAtLeast(0) / 1000)
+
+    override fun onInsetsChanged(insets: Insets) {
+        systemInsets = insets
+        positionControls()
+    }
+
+    override fun onPanelHeightChanged(height: Int) {
+        panelHeight = height
+        positionControls()
+    }
+
+    private fun positionControls() {
+        _binding?.playbackControlsShadowbox?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            bottomMargin = maxOf(panelHeight, systemInsets.bottom)
+            leftMargin = systemInsets.left
+            rightMargin = systemInsets.right
+        }
     }
 
     override fun pausePlayback() {
         // No rewind: a pause keeps its place, so pressing play on the way back carries on from
         // the frame the user left rather than starting the video over.
         pageActive = false
-        startedByUser = false
         applyPlayback()
     }
 

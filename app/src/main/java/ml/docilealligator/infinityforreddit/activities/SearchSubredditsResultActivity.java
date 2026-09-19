@@ -30,6 +30,8 @@ import ml.docilealligator.infinityforreddit.databinding.ActivitySearchSubreddits
 import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent;
 import ml.docilealligator.infinityforreddit.fragments.SubredditListingFragment;
 import ml.docilealligator.infinityforreddit.subreddit.SubredditData;
+import ml.docilealligator.infinityforreddit.thing.SortType;
+import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import ml.docilealligator.infinityforreddit.utils.Utils;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -53,6 +55,9 @@ public class SearchSubredditsResultActivity extends BaseActivity implements Acti
     @Inject
     @Named("current_account")
     SharedPreferences mCurrentAccountSharedPreferences;
+    @Inject
+    @Named("sort_type")
+    SharedPreferences mSortTypeSharedPreferences;
     @Inject
     CustomThemeWrapper mCustomThemeWrapper;
     private ActivitySearchSubredditsResultBinding binding;
@@ -167,6 +172,8 @@ public class SearchSubredditsResultActivity extends BaseActivity implements Acti
         SubredditListingFragment fragment = new SubredditListingFragment();
         Bundle bundle = new Bundle();
         bundle.putString(SubredditListingFragment.EXTRA_QUERY, query);
+        bundle.putBoolean(SubredditListingFragment.EXTRA_COMMUNITY_DETAILS,
+                getIntent().getBooleanExtra(EXTRA_BROWSE, false));
         bundle.putBoolean(SubredditListingFragment.EXTRA_IS_GETTING_SUBREDDIT_INFO,
                 !getIntent().getBooleanExtra(EXTRA_BROWSE, false));
         bundle.putBoolean(SubredditListingFragment.EXTRA_IS_MULTI_SELECTION,
@@ -202,15 +209,40 @@ public class SearchSubredditsResultActivity extends BaseActivity implements Acti
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        if (getIntent().getBooleanExtra(EXTRA_BROWSE, false)) {
+            getMenuInflater().inflate(R.menu.find_subreddits, menu);
+        }
         if (getIntent().getBooleanExtra(EXTRA_IS_MULTI_SELECTION, false)) {
             getMenuInflater().inflate(R.menu.search_subreddits_result_activity, menu);
-            applyMenuItemTheme(menu);
         }
+        applyMenuItemTheme(menu);
         return true;
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem activity = menu.findItem(R.id.action_find_subreddits_activity);
+        if (activity != null) {
+            boolean active = "ACTIVITY".equalsIgnoreCase(mSortTypeSharedPreferences.getString(
+                    SharedPreferencesUtils.SORT_TYPE_SEARCH_SUBREDDIT, "RELEVANCE"));
+            activity.setChecked(active);
+            menu.findItem(R.id.action_find_subreddits_relevance).setChecked(!active);
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.action_find_subreddits_activity || item.getItemId() == R.id.action_find_subreddits_relevance) {
+            SortType.Type type = item.getItemId() == R.id.action_find_subreddits_activity
+                    ? SortType.Type.ACTIVITY : SortType.Type.RELEVANCE;
+            mSortTypeSharedPreferences.edit().putString(SharedPreferencesUtils.SORT_TYPE_SEARCH_SUBREDDIT, type.name()).apply();
+            if (mFragment != null && mFragment.isAdded()) {
+                ((SubredditListingFragment) mFragment).changeSortType(new SortType(type));
+            }
+            invalidateOptionsMenu();
+            return true;
+        }
         if (item.getItemId() == android.R.id.home) {
             finish();
             return true;

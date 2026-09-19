@@ -979,6 +979,16 @@
     <string name="import_subscriptions_unavailable">Could not find these communities: %1$s</string>
     <string name="import_subscriptions_failed">Could not import subscriptions. Your lists are unchanged. Check your connection and try again.</string>
     <string name="find_subreddits">Find subreddits</string>
+    <string name="find_subreddits_relevance">Most relevant</string>
+    <string name="find_subreddits_activity">Most active</string>
+    <string name="find_subreddits_sort">Sort results</string>
+    <string name="shadowbox_seek">Seek video</string>
+    <string name="shadowbox_seek_back">Seek backward</string>
+    <string name="shadowbox_seek_forward">Seek forward</string>
+    <string name="shadowbox_volume">Video volume</string>
+    <string name="subscribe_to_community">Subscribe to r/%1$s</string>
+    <string name="add_community_to_multireddit">Add r/%1$s to a multireddit</string>
+    <string name="create_multireddit_from_search">Create a multireddit with this community already selected.</string>
     <string name="find_subreddits_hint">Search by name or topic</string>
     <string name="find_subreddits_help">Search for a community, then tap a result to open it or use its subscribe button to add it to Home.</string>
     <string name="manage_multireddits">Manage multireddits</string>

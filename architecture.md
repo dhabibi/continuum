@@ -29,6 +29,13 @@ profiles for outstanding alarms, and the receiver removes a fired reminder from
 its owner's database. Default alarms retain their pre-existing PendingIntent
 identity for compatibility.
 
+The sidebar lists local profiles directly. Multireddit moves copy metadata and
+members into the destination transaction before deleting source rows. The source
+write lock prevents concurrent edits during the move. A failed source commit may
+leave a duplicate, but cannot remove the only copy. Existing destination feeds
+are preserved by assigning a numbered name/path to collisions. Bulk selection
+and individual sidebar/list actions share this transfer implementation.
+
 Settings backup/restore operates on the selected local account's database and
 shared preferences. The local-account registry is not restored from those ZIPs;
 restoring into a selected account leaves the other local accounts' databases
@@ -36,4 +43,4 @@ alone. The backup screen names that scope when multiple local accounts exist.
 
 `LocalProfilesTest` exercises separate Room files, colliding multireddit paths,
 existing Default data, saved screen paths and account preference separation.
-The pending Android validation and APK build hold are recorded in current_state.md.
+Current validation and release status are recorded in current_state.md.

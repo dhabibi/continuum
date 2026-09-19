@@ -53,6 +53,7 @@ import retrofit2.Retrofit;
 public class SubredditListingFragment extends Fragment implements FragmentCommunicator {
 
     public static final String EXTRA_QUERY = "EQ";
+    public static final String EXTRA_COMMUNITY_DETAILS = "ECD";
     public static final String EXTRA_IS_GETTING_SUBREDDIT_INFO = "EIGSI";
     public static final String EXTRA_IS_MULTI_SELECTION = "EIMS";
 
@@ -155,6 +156,7 @@ public class SubredditListingFragment extends Fragment implements FragmentCommun
                     }
                 });
 
+        mAdapter.setShowCommunityDetails(getArguments().getBoolean(EXTRA_COMMUNITY_DETAILS, false));
         binding.recyclerViewSubredditListingFragment.setAdapter(mAdapter);
 
         if (mActivity instanceof RecyclerViewContentScrollingInterface) {

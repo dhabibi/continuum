@@ -64,3 +64,5 @@ Shadowbox playback with autoplay/seeking/volume controls, and richer subreddit
 discovery with concise descriptions, most-active sorting and add-to-multireddit
 buttons. Keep the personal-use flows direct and preserve the existing profile
 data, media performance and signing identity. The usage stop boundary remains.
+Daniel explicitly confirmed that both relevance and activity sorting must remain
+available in subreddit search.

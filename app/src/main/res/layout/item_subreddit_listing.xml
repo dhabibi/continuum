@@ -21,7 +21,7 @@
         android:id="@+id/subreddit_name_text_view_item_subreddit_listing"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
+        android:layout_marginStart="16dp"
         android:fontFamily="?attr/font_family"
         android:textSize="?attr/font_default"
         app:layout_constraintStart_toEndOf="@+id/subreddit_icon_gif_image_view_item_subreddit_listing"
@@ -32,18 +32,33 @@
         android:id="@+id/subscriber_count_text_view_item_subreddit_listing"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
+        android:layout_marginStart="16dp"
         android:fontFamily="?attr/font_family"
         android:textSize="?attr/font_default"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toEndOf="@+id/subreddit_icon_gif_image_view_item_subreddit_listing"
         app:layout_constraintEnd_toStartOf="@id/barrier3"
         app:layout_constraintTop_toBottomOf="@id/subreddit_name_text_view_item_subreddit_listing" />
 
+    <TextView
+        android:id="@+id/description_item_subreddit_listing"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="?attr/font_family"
+        android:textSize="?attr/font_default"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="@id/subreddit_name_text_view_item_subreddit_listing"
+        app:layout_constraintEnd_toStartOf="@id/barrier3"
+        app:layout_constraintTop_toBottomOf="@id/subscriber_count_text_view_item_subreddit_listing"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
     <ImageView
         android:id="@+id/subscribe_image_view_item_subreddit_listing"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="12dp"
         android:layout_gravity="center_vertical"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
@@ -51,8 +66,22 @@
         android:src="@drawable/ic_add_24dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/add_to_multireddit_item_subreddit_listing"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <ImageView
+        android:id="@+id/add_to_multireddit_item_subreddit_listing"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:src="@drawable/ic_multi_reddit_day_night_24dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/checkbox_item_subreddit_listing"
@@ -68,6 +97,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="start"
-        app:constraint_referenced_ids="subscribe_image_view_item_subreddit_listing,checkbox_item_subreddit_listing" />
+        app:constraint_referenced_ids="subscribe_image_view_item_subreddit_listing,add_to_multireddit_item_subreddit_listing,checkbox_item_subreddit_listing" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

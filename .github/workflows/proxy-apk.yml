@@ -48,7 +48,7 @@ jobs:
           mkdir -p "$HOME/.android"
           printf '%s' "$CONTINUUM_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
       - name: Check import and media regressions
-        run: ./gradlew :app:testDebugUnitTest --tests '*LegacyMultiredditLinkTest' --tests '*LocalSubscriptionImportTest' --tests '*LocalProfilesTest' --tests '*LocalMultiredditTransferTest' --tests '*MediaPreloadBudgetTest' --tests '*InlineGifVideoPlayerTest' --tests '*PreloadWindowTest' --tests '*ImagePreviewSelectorTest' --no-daemon --max-workers=2
+        run: ./gradlew :app:testDebugUnitTest --tests '*LegacyMultiredditLinkTest' --tests '*LocalSubscriptionImportTest' --tests '*LocalProfilesTest' --tests '*LocalMultiredditTransferTest' --tests '*LocalMultiredditMembershipTest' --tests '*MediaPreloadBudgetTest' --tests '*InlineGifVideoPlayerTest' --tests '*PreloadWindowTest' --tests '*ImagePreviewSelectorTest' --no-daemon --max-workers=2
       - name: Build installable debug APKs
         run: ./gradlew :app:assembleDebug --no-daemon --max-workers=2
       - name: Verify APK signatures

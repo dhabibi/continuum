@@ -29,6 +29,7 @@ import ml.docilealligator.infinityforreddit.databinding.ItemSubredditListingBind
 import ml.docilealligator.infinityforreddit.events.ChangeAnonymousSubredditSubscriptionEvent;
 import ml.docilealligator.infinityforreddit.subreddit.SubredditData;
 import ml.docilealligator.infinityforreddit.subreddit.SubredditSubscription;
+import ml.docilealligator.infinityforreddit.multireddit.MultiredditMembershipDialog;
 import org.greenrobot.eventbus.EventBus;
 import retrofit2.Retrofit;
 
@@ -68,6 +69,12 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
     @Nullable
     private NetworkState networkState;
     private final Callback callback;
+    private boolean showCommunityDetails;
+
+    public void setShowCommunityDetails(boolean show) {
+        showCommunityDetails = show;
+        notifyDataSetChanged();
+    }
 
     public SubredditListingRecyclerViewAdapter(BaseActivity activity, Executor executor, Retrofit oauthRetrofit, Retrofit retrofit,
                                                CustomThemeWrapper customThemeWrapper,
@@ -110,6 +117,20 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
         if (holder instanceof DataViewHolder) {
             SubredditData subredditData = getItem(position);
             if (subredditData != null) {
+                DataViewHolder row = (DataViewHolder) holder;
+                row.boundId = subredditData.getId();
+                row.binding.subscribeImageViewItemSubredditListing.setVisibility(View.GONE);
+                row.binding.subscribeImageViewItemSubredditListing.setOnClickListener(null);
+                row.binding.subscribeImageViewItemSubredditListing.setContentDescription(
+                        activity.getString(R.string.subscribe_to_community, subredditData.getName()));
+                String description = subredditData.getDescription().replaceAll("\\s+", " ").trim();
+                row.binding.descriptionItemSubredditListing.setText(description);
+                row.binding.descriptionItemSubredditListing.setVisibility(showCommunityDetails && !description.isEmpty() ? View.VISIBLE : View.GONE);
+                row.binding.addToMultiredditItemSubredditListing.setVisibility(showCommunityDetails && !isMultiSelection ? View.VISIBLE : View.GONE);
+                row.binding.addToMultiredditItemSubredditListing.setContentDescription(
+                        activity.getString(R.string.add_community_to_multireddit, subredditData.getName()));
+                row.binding.addToMultiredditItemSubredditListing.setOnClickListener(view ->
+                        MultiredditMembershipDialog.show(activity, executor, redditDataRoomDatabase, oauthRetrofit, subredditData));
                 if (isMultiSelection) {
                     ((DataViewHolder) holder).binding.checkboxItemSubredditListing.setOnCheckedChangeListener((compoundButton, b) -> subredditData.setSelected(b));
                 }
@@ -142,11 +163,13 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
                             new CheckIsSubscribedToSubreddit.CheckIsSubscribedToSubredditListener() {
                                 @Override
                                 public void isSubscribed() {
+                                    if (!row.isBoundTo(subredditData)) return;
                                     ((DataViewHolder) holder).binding.subscribeImageViewItemSubredditListing.setVisibility(View.GONE);
                                 }
 
                                 @Override
                                 public void isNotSubscribed() {
+                                    if (!row.isBoundTo(subredditData)) return;
                                     ((DataViewHolder) holder).binding.subscribeImageViewItemSubredditListing.setVisibility(View.VISIBLE);
                                     ((DataViewHolder) holder).binding.subscribeImageViewItemSubredditListing.setOnClickListener(view -> {
                                         if (!accountName.equals(Account.ANONYMOUS_ACCOUNT)) {
@@ -156,7 +179,7 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
                                                     new SubredditSubscription.SubredditSubscriptionListener() {
                                                         @Override
                                                         public void onSubredditSubscriptionSuccess() {
-                                                            ((DataViewHolder) holder).binding.subscribeImageViewItemSubredditListing.setVisibility(View.GONE);
+                                                            if (row.isBoundTo(subredditData)) row.binding.subscribeImageViewItemSubredditListing.setVisibility(View.GONE);
                                                             Toast.makeText(activity, R.string.subscribed, Toast.LENGTH_SHORT).show();
                                                         }
 
@@ -172,7 +195,7 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
                                                     new SubredditSubscription.SubredditSubscriptionListener() {
                                                         @Override
                                                         public void onSubredditSubscriptionSuccess() {
-                                                            ((DataViewHolder) holder).binding.subscribeImageViewItemSubredditListing.setVisibility(View.GONE);
+                                                            if (row.isBoundTo(subredditData)) row.binding.subscribeImageViewItemSubredditListing.setVisibility(View.GONE);
                                                             Toast.makeText(activity, R.string.subscribed, Toast.LENGTH_SHORT).show();
                                                             EventBus.getDefault().post(new ChangeAnonymousSubredditSubscriptionEvent());
                                                         }
@@ -243,6 +266,7 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
     @Override
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
         if (holder instanceof DataViewHolder) {
+            ((DataViewHolder) holder).boundId = null;
             glide.clear(((DataViewHolder) holder).binding.subredditIconGifImageViewItemSubredditListing);
             ((DataViewHolder) holder).binding.subscribeImageViewItemSubredditListing.setVisibility(View.GONE);
         }
@@ -256,12 +280,17 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
 
     class DataViewHolder extends RecyclerView.ViewHolder {
         ItemSubredditListingBinding binding;
+        @Nullable String boundId;
+
+        boolean isBoundTo(SubredditData subreddit) { return subreddit.getId().equals(boundId); }
 
         DataViewHolder(@NonNull ItemSubredditListingBinding binding) {
             super(binding.getRoot());
             this.binding = binding;
             binding.subredditNameTextViewItemSubredditListing.setTextColor(primaryTextColor);
             binding.subscriberCountTextViewItemSubredditListing.setTextColor(secondaryTextColor);
+            binding.descriptionItemSubredditListing.setTextColor(secondaryTextColor);
+            binding.addToMultiredditItemSubredditListing.setColorFilter(colorAccent);
             binding.subscribeImageViewItemSubredditListing.setColorFilter(unsubscribed, android.graphics.PorterDuff.Mode.SRC_IN);
             if (isMultiSelection) {
                 binding.checkboxItemSubredditListing.setVisibility(View.VISIBLE);
@@ -270,6 +299,7 @@ public class SubredditListingRecyclerViewAdapter extends PagedListAdapter<Subred
             if (activity.typeface != null) {
                 binding.subredditNameTextViewItemSubredditListing.setTypeface(activity.typeface);
                 binding.subscriberCountTextViewItemSubredditListing.setTypeface(activity.typeface);
+                binding.descriptionItemSubredditListing.setTypeface(activity.typeface);
             }
         }
     }

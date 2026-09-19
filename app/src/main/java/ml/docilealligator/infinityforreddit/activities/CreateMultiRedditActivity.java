@@ -42,6 +42,8 @@ import ml.docilealligator.infinityforreddit.utils.Utils;
 import retrofit2.Retrofit;
 
 public class CreateMultiRedditActivity extends BaseActivity {
+    public static final String EXTRA_INITIAL_SUBREDDIT = "initial_subreddit";
+    public static final String EXTRA_INITIAL_SUBREDDIT_ICON = "initial_subreddit_icon";
 
     private static final int SUBREDDIT_SELECTION_REQUEST_CODE = 1;
     private static final String SELECTED_SUBREDDITS_STATE = "SSS";
@@ -120,6 +122,12 @@ public class CreateMultiRedditActivity extends BaseActivity {
                     savedInstanceState.getParcelableArrayList(SELECTED_SUBREDDITS_STATE);
             if (restoredSubreddits != null) {
                 mSubreddits = restoredSubreddits;
+            }
+        } else {
+            String initial = getIntent().getStringExtra(EXTRA_INITIAL_SUBREDDIT);
+            if (initial != null && !initial.isEmpty()) {
+                mSubreddits.add(new ExpandedSubredditInMultiReddit(initial,
+                        getIntent().getStringExtra(EXTRA_INITIAL_SUBREDDIT_ICON)));
             }
         }
         bindView();
