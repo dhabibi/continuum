@@ -142,7 +142,10 @@ def rewrite_urls_in_text(text: str) -> str:
 
 def rewrite_json(value: Any) -> Any:
     if isinstance(value, dict):
-        return {key: rewrite_json(item) for key, item in value.items()}
+        # Continuum recognizes Reddit's markdown embeds by their original URL.
+        # Its media interceptor proxies the eventual image/video request.
+        return {key: item if key in ("body", "selftext") else rewrite_json(item)
+                for key, item in value.items()}
     if isinstance(value, list):
         return [rewrite_json(item) for item in value]
     if isinstance(value, str):

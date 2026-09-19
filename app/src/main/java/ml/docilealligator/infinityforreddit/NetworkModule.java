@@ -17,6 +17,7 @@ import ml.docilealligator.infinityforreddit.apis.StreamableAPI;
 import ml.docilealligator.infinityforreddit.apis.StreamableAPIKt;
 import ml.docilealligator.infinityforreddit.network.AccessTokenAuthenticator;
 import ml.docilealligator.infinityforreddit.network.AnonymousAccessTokenInterceptor;
+import ml.docilealligator.infinityforreddit.network.RedditMediaProxyInterceptor;
 import ml.docilealligator.infinityforreddit.network.RedgifsAccessTokenAuthenticator;
 import ml.docilealligator.infinityforreddit.network.ServerAccessTokenAuthenticator;
 import ml.docilealligator.infinityforreddit.network.SortTypeConverterFactory;
@@ -39,7 +40,7 @@ abstract class NetworkModule {
     @Provides
     @Named("base")
     @Singleton
-    static OkHttpClient provideBaseOkhttp(@Named("proxy") SharedPreferences mProxySharedPreferences,
+    static OkHttpClient provideBaseOkhttp(Context context, @Named("proxy") SharedPreferences mProxySharedPreferences,
                                           ApiCallTracker apiCallTracker) {
         boolean proxyEnabled = mProxySharedPreferences.getBoolean(SharedPreferencesUtils.PROXY_ENABLED, false);
 
@@ -60,6 +61,12 @@ abstract class NetworkModule {
                         return chain.proceed(chain.request());
                     }
                 });
+
+        String apiBaseUri = APIUtils.getApiBaseUri(context);
+        HttpUrl mediaProxyBase = HttpUrl.parse(apiBaseUri);
+        if (!apiBaseUri.equals(APIUtils.DEFAULT_API_BASE_URI) && mediaProxyBase != null) {
+            builder.addInterceptor(new RedditMediaProxyInterceptor(mediaProxyBase));
+        }
 
         if (proxyEnabled) {
             Proxy.Type proxyType = Proxy.Type.valueOf(mProxySharedPreferences.getString(SharedPreferencesUtils.PROXY_TYPE, "HTTP"));

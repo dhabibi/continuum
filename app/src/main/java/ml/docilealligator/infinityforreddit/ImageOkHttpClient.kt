@@ -5,9 +5,11 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import ml.docilealligator.infinityforreddit.apimonitor.ApiMonitorEventListener
+import ml.docilealligator.infinityforreddit.network.RedditMediaProxyInterceptor
 import ml.docilealligator.infinityforreddit.utils.APIUtils
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * The one OkHttpClient every Glide image load is supposed to go through: app timeouts, the app's
@@ -72,6 +74,12 @@ object ImageOkHttpClient {
                         .build()
                 )
             }
+
+        val apiBaseUri = APIUtils.getApiBaseUri(applicationContext)
+        val mediaProxyBase = apiBaseUri.toHttpUrlOrNull()
+        if (apiBaseUri != APIUtils.DEFAULT_API_BASE_URI && mediaProxyBase != null) {
+            builder.addInterceptor(RedditMediaProxyInterceptor(mediaProxyBase))
+        }
 
         // Instrument image retrieval so it shows up in API/media statistics. Glide builds its own
         // OkHttpClient, so the base-client EventListener does not reach it otherwise.

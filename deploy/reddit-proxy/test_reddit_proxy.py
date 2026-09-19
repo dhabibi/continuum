@@ -30,6 +30,12 @@ class RewritingTests(unittest.TestCase):
                          "/media/preview.redd.it/a%20b.jpg?width=640&format=pjpg&s=abc%2Fxyz")
         self.assertEqual(result["text"], "https://example.com/a")
 
+    def test_markdown_embed_syntax_is_preserved_for_the_app_parser(self):
+        source = {"body": "https://i.redd.it/embed.png", "url": "https://i.redd.it/embed.png"}
+        result = proxy.rewrite_json(source)
+        self.assertEqual(result["body"], source["body"])
+        self.assertEqual(result["url"], proxy.PUBLIC_BASE + "/media/i.redd.it/embed.png")
+
     def test_host_injection_and_suffix_spoofs_are_rejected(self):
         for host in ("i.redd.it.evil.com", "localhost", "127.0.0.1", "evil@i.redd.it",
                      "evil%2fi.redd.it", "i.redd.it:443", "redditstatic.com.evil"):

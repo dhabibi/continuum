@@ -6,6 +6,10 @@ restart. Select Anonymous browsing. The proxy uses an anonymous Android identity
 it does not log into a Reddit account or provide account actions. Third-party
 media hosts keep their ordinary direct connections.
 
+A small OkHttp interceptor also routes Reddit CDN URLs synthesized by the app.
+Markdown body/selftext retain their original URLs so Continuum can recognize
+embedded media; the actual media fetch still goes through the proxy.
+
 Build the app with the `Proxy APK` workflow in this fork, or run
 `./gradlew :app:assembleDebug --no-daemon --max-workers=2` with JDK 25 and Android
 SDK 37. Debug APKs install alongside the standard Continuum app.
