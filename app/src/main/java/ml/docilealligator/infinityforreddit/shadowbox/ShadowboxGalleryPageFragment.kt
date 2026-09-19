@@ -80,13 +80,6 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         binding.recyclerViewShadowboxMediaGallery.adapter = adapter
     }
 
-    override fun openFullViewer() {
-        val layoutManager = _binding?.recyclerViewShadowboxMediaGallery?.layoutManager as? LinearLayoutManagerBugFixed
-        val index = layoutManager?.findFirstCompletelyVisibleItemPosition()?.takeIf { it >= 0 }
-            ?: layoutManager?.findFirstVisibleItemPosition()?.takeIf { it >= 0 } ?: 0
-        ShadowboxMediaIntents.openGallery(host, post, index)
-    }
-
     override fun onInsetsChanged(insets: Insets) {
         this.insets = insets
         applyListPadding()

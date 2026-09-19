@@ -94,7 +94,6 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     private var isMute = false
     private var volume = 1f
     private var scrubbing = false
-    private var panelHeight = 0
     private var systemInsets = Insets.NONE
     private val updateProgress = object : Runnable {
         override fun run() {
@@ -130,22 +129,6 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     /** Set when the user presses pause, so autoplay does not start it up again behind their back. */
     private var userPaused = false
 
-    /**
-     * Set when the play button's time is up, cleared by whatever brings it back. Kept apart from
-     * the rule in [updatePlayButton] so a passive refresh -- a rebuffer, say -- never revives a
-     * button that has already gone: only a touch or a change of playback state does.
-     */
-    private var playButtonTimedOut = false
-
-    /**
-     * Takes the play button down, [Constants.VIDEO_CONTROLS_SHOW_TIMEOUT_MS] after it came up on a
-     * playing video.
-     */
-    private val hidePlayButton = Runnable {
-        playButtonTimedOut = true
-        updatePlayButton()
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         uri = Uri.parse(requireArguments().getString(ARG_URI) ?: "")
@@ -155,7 +138,8 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     override fun onCreateMediaView(inflater: LayoutInflater, container: ViewGroup) {
         val binding = ShadowboxMediaVideoBinding.inflate(inflater, container, true)
         _binding = binding
-        binding.playerViewShadowboxMediaVideo.setOnClickListener { toggleChrome() }
+        binding.playerViewShadowboxMediaVideo.setOnClickListener { togglePlayback() }
+        binding.playerViewShadowboxMediaVideo.setOnLongClickListener { toggleChrome(); true }
         binding.progressBarShadowboxMediaVideo.visibility = View.INVISIBLE
         binding.playButtonShadowboxMediaVideo.setOnClickListener { togglePlayback() }
         binding.playbackErrorLinearLayoutShadowboxMediaVideo.setOnClickListener { retryPlayback() }
@@ -164,6 +148,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         binding.seekPositionShadowbox.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStartTrackingTouch(seekBar: SeekBar) {
                 scrubbing = true
+                binding.playbackTimesShadowbox.visibility = View.VISIBLE
                 seekBar.parent.requestDisallowInterceptTouchEvent(true)
             }
 
@@ -265,10 +250,15 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
                 val hasAudio = tracks.groups.any { group ->
                     group.length > 0 && group.getTrackFormat(0).sampleMimeType?.contains("audio") == true
                 }
-                _binding?.volumeRowShadowbox?.visibility = if (hasAudio) View.VISIBLE else View.GONE
                 if (hasAudio) {
-                    panel?.showMuteControl(isMute) { toggleMute() }
+                    panel?.showMuteControl(isMute, ::toggleMute) {
+                        _binding?.volumeRowShadowbox?.let {
+                            it.visibility = if (it.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                            panel?.setVolumeControlsExpanded(it.visibility == View.VISIBLE)
+                        }
+                    }
                 } else {
+                    _binding?.volumeRowShadowbox?.visibility = View.GONE
                     panel?.hideMuteControl()
                 }
             }
@@ -321,7 +311,6 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     private fun releasePlayer() {
         // Ahead of the early return: a page whose player is already gone can still have a pending
         // hide posted on its button, and onDestroyView comes through here.
-        _binding?.playButtonShadowboxMediaVideo?.removeCallbacks(hidePlayButton)
         _binding?.playbackControlsShadowbox?.removeCallbacks(updateProgress)
         val player = player ?: return
         if (!playbackFailed) {
@@ -545,14 +534,8 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     private fun applyPlayback() {
         val player = player ?: return
         player.playWhenReady = pageActive && !userPaused
-        showPlayButton()
-        updateControls()
-    }
-
-    /** Brings the play button back and, if the video is playing, starts its clock again. */
-    private fun showPlayButton() {
-        playButtonTimedOut = false
         updatePlayButton()
+        updateControls()
     }
 
     /**
@@ -638,15 +621,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         applyPlayback()
     }
 
-    /**
-     * The centre button is this page's play/pause control, the way the controller is on the video
-     * viewer: always there while the video is paused, so a page autoplay left alone says how to
-     * start it, and there when the bar comes up, so a playing video can be paused from the same
-     * spot. On a playing video it goes on the viewer's clock -- 5 s after it came up, cut rather
-     * than faded, the way every other player in the app drops its controls -- and comes back with
-     * the next tap or the next change of playback state. It gets out of the way at once in the
-     * state meant for watching -- playing, bar hidden.
-     */
+    /** A paused clip shows a play affordance; playing clips keep the picture clear. */
     private fun updatePlayButton() {
         val binding = _binding ?: return
         val button = binding.playButtonShadowboxMediaVideo
@@ -654,19 +629,12 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         button.setIconResource(
             if (playing) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp
         )
-        val chromeVisible = host.panelVisible.value != false
-        val visible = !playbackFailed && (!playing || (chromeVisible && !playButtonTimedOut))
+        val visible = pageActive && !playbackFailed && !playing
         button.visibility = if (visible) View.VISIBLE else View.GONE
-        // One clock, restarted by whatever shows the button on a playing video; a paused video's
-        // button is not on it.
-        button.removeCallbacks(hidePlayButton)
-        if (visible && playing) {
-            button.postDelayed(hidePlayButton, Constants.VIDEO_CONTROLS_SHOW_TIMEOUT_MS.toLong())
-        }
     }
 
     override fun onChromeVisibilityChanged(visible: Boolean) {
-        showPlayButton()
+        updatePlayButton()
         updateControls()
     }
 
@@ -713,6 +681,8 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         val player = player ?: return
         val duration = player.duration
         val seekable = duration > 0 && player.isCurrentMediaItemSeekable
+        binding.playbackTimesShadowbox.visibility = if (scrubbing || !player.playWhenReady) View.VISIBLE else View.GONE
+        binding.seekPositionShadowbox.thumb?.alpha = if (scrubbing || !player.playWhenReady) 255 else 0
         binding.seekPositionShadowbox.isEnabled = seekable
         binding.seekBackShadowbox.isEnabled = seekable
         binding.seekForwardShadowbox.isEnabled = seekable
@@ -731,14 +701,9 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         positionControls()
     }
 
-    override fun onPanelHeightChanged(height: Int) {
-        panelHeight = height
-        positionControls()
-    }
-
     private fun positionControls() {
         _binding?.playbackControlsShadowbox?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-            bottomMargin = maxOf(panelHeight, systemInsets.bottom)
+            bottomMargin = systemInsets.bottom
             leftMargin = systemInsets.left
             rightMargin = systemInsets.right
         }
@@ -748,16 +713,9 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         // No rewind: a pause keeps its place, so pressing play on the way back carries on from
         // the frame the user left rather than starting the video over.
         pageActive = false
+        _binding?.volumeRowShadowbox?.visibility = View.GONE
+        panel?.setVolumeControlsExpanded(false)
         applyPlayback()
-    }
-
-    override fun openFullViewer() {
-        val progress = player?.currentPosition ?: 0L
-        if (isGifMp4) {
-            ShadowboxMediaIntents.openGifMp4(host, post, uri.toString(), progress)
-        } else {
-            ShadowboxMediaIntents.openVideo(host, post, progress)
-        }
     }
 
     override fun onDestroyView() {

@@ -164,10 +164,6 @@ class ShadowboxTextPageFragment : ShadowboxPageFragment() {
         host.startActivity(intent)
     }
 
-    override fun openFullViewer() {
-        openComments()
-    }
-
     override fun onInsetsChanged(insets: Insets) {
         this.insets = insets
         applyPadding()
@@ -180,7 +176,7 @@ class ShadowboxTextPageFragment : ShadowboxPageFragment() {
 
     private fun applyPadding() {
         val binding = _binding ?: return
-        binding.root.updatePadding(left = insets.left, right = insets.right)
+        binding.root.updatePadding(left = insets.left, right = insets.right + (80 * resources.displayMetrics.density).toInt())
         topInsetPadding = insets.top + (16 * resources.displayMetrics.density).toInt()
         binding.contentRecyclerViewShadowboxMediaText.updatePadding(
             top = topInsetPadding, bottom = maxOf(panelHeight, insets.bottom)

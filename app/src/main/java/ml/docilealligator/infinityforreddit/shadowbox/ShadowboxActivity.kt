@@ -4,12 +4,14 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.media.AudioManager
 import android.os.Bundle
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.viewpager2.widget.ViewPager2
@@ -162,6 +164,7 @@ class ShadowboxActivity : BaseActivity() {
 
         binding = ActivityShadowboxBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.closeShadowbox.setOnClickListener { finish() }
         volumeControlStream = AudioManager.STREAM_MUSIC
 
         markPostsAsRead = postHistorySharedPreferences.getBoolean(
@@ -184,6 +187,11 @@ class ShadowboxActivity : BaseActivity() {
         insetsViewModel = ViewModelProvider(this)[ViewGalleryViewModel::class.java]
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val bars = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            binding.closeShadowbox.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                topMargin = bars.top + (8 * resources.displayMetrics.density).toInt()
+                leftMargin = bars.left + (8 * resources.displayMetrics.density).toInt()
+            }
             // Ignoring visibility keeps the panel's padding the same whether the bars are shown or
             // hidden, so toggling the chrome never moves it.
             insetsViewModel.setInsets(

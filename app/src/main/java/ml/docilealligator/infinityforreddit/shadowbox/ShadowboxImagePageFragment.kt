@@ -1,6 +1,5 @@
 package ml.docilealligator.infinityforreddit.shadowbox
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -9,7 +8,6 @@ import android.view.ViewGroup
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.piasy.biv.loader.ImageLoader
 import ml.docilealligator.infinityforreddit.SaveMemoryCenterInisdeDownsampleStrategy
-import ml.docilealligator.infinityforreddit.activities.ViewImageOrGifActivity
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory
 import ml.docilealligator.infinityforreddit.databinding.ShadowboxMediaImageBinding
 import java.io.File
@@ -125,22 +123,6 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
         preview.animate().alpha(0f).setDuration(PREVIEW_FADE_MS).withEndAction {
             _binding?.previewImageViewShadowboxMediaImage?.visibility = View.GONE
         }.start()
-    }
-
-    override fun openFullViewer() {
-        val intent = Intent(host, ViewImageOrGifActivity::class.java)
-        if (isGif) {
-            intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, post.subredditName + "-" + post.id + ".gif")
-            intent.putExtra(ViewImageOrGifActivity.EXTRA_GIF_URL_KEY, url)
-        } else {
-            intent.putExtra(ViewImageOrGifActivity.EXTRA_IMAGE_URL_KEY, url)
-            intent.putExtra(ViewImageOrGifActivity.EXTRA_FILE_NAME_KEY, post.subredditName + "-" + post.id + ".jpg")
-        }
-        intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_TITLE_KEY, post.title)
-        intent.putExtra(ViewImageOrGifActivity.EXTRA_POST_ID_KEY, post.id)
-        intent.putExtra(ViewImageOrGifActivity.EXTRA_SUBREDDIT_OR_USERNAME_KEY, post.subredditName)
-        intent.putExtra(ViewImageOrGifActivity.EXTRA_IS_NSFW, post.isNSFW)
-        host.startActivity(intent)
     }
 
     override fun onDestroyView() {

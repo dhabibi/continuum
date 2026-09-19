@@ -10,4 +10,15 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <ImageButton
+        android:id="@+id/close_shadowbox"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|start"
+        android:layout_margin="8dp"
+        android:padding="12dp"
+        android:background="@drawable/exo_player_control_button_circular_background"
+        android:src="@drawable/ic_close_24dp"
+        android:tint="@android:color/white"
+        android:contentDescription="@string/shadowbox_close" />
 </FrameLayout>

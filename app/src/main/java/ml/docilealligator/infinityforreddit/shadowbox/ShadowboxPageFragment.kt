@@ -138,16 +138,15 @@ abstract class ShadowboxPageFragment : Fragment() {
             binding.infoPanelShadowboxPageFragment, host, glide, retrofit, oauthRetrofit,
             redditDataRoomDatabase, executor, sharedPreferences, postHistorySharedPreferences,
             customThemeWrapper, host.supportFragmentManager, host.isNsfwSubreddit,
-            host::markPostReadAfterVoting, ::openFullViewer
+            host::markPostReadAfterVoting
         )
         panel.bind(post, position)
         this.panel = panel
         onPanelReady(panel)
 
         val panelRoot = binding.infoPanelShadowboxPageFragment.root
-        // A shown panel swallows presses on its own background, so a miss next to the upvote
-        // button does not reach the media behind it and collapse the bar.
-        panelRoot.isClickable = true
+        // Empty overlay space lets taps reach the video; action buttons remain clickable.
+        panelRoot.isClickable = false
         panelRoot.alpha = if (host.panelVisible.value == true) 1f else 0f
         panelRoot.visibility = if (host.panelVisible.value == true) View.VISIBLE else View.INVISIBLE
         host.panelVisible.observe(viewLifecycleOwner) { visible ->
@@ -180,9 +179,9 @@ abstract class ShadowboxPageFragment : Fragment() {
             active = page == position
             if (active) onPageActive() else onPageInactive()
         }
-        binding.infoPanelShadowboxPageFragment.root.addOnLayoutChangeListener { v, _, top, _, bottom, _, oldTop, _, oldBottom ->
+        binding.infoPanelShadowboxPageFragment.captionShadowboxInfoPanel.addOnLayoutChangeListener { v, _, top, _, bottom, _, oldTop, _, oldBottom ->
             if (bottom - top != oldBottom - oldTop) {
-                onPanelHeightChanged(bottom - top)
+                onPanelHeightChanged(bottom - top + (60 * resources.displayMetrics.density).toInt())
             }
         }
 
@@ -270,9 +269,6 @@ abstract class ShadowboxPageFragment : Fragment() {
 
     /** Start loading the media; called once, after any blur overlay has been tapped away. */
     protected abstract fun loadMedia()
-
-    /** Open the existing full-screen viewer for this post (the panel's fullscreen button). */
-    protected abstract fun openFullViewer()
 
     /** The pager landed on this page (and the media is revealed): start playing. */
     protected open fun onPageActive() {}

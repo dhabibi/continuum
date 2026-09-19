@@ -49,7 +49,7 @@ class ShadowboxPreviewPageFragment : ShadowboxPageFragment() {
         }
         binding.root.setOnClickListener {
             if (pressWasOnImage()) {
-                openFullViewer()
+                openLinkedContent()
             } else {
                 toggleChrome()
             }
@@ -76,7 +76,7 @@ class ShadowboxPreviewPageFragment : ShadowboxPageFragment() {
             .into(binding.imageViewShadowboxMediaPreview)
     }
 
-    override fun openFullViewer() {
+    private fun openLinkedContent() {
         when (kind) {
             KIND_VIDEO -> ShadowboxMediaIntents.openVideo(host, post, 0L)
             KIND_ALBUM -> ShadowboxMediaIntents.openImageHostAlbum(host, post)

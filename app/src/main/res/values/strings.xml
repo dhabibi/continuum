@@ -986,6 +986,9 @@
     <string name="shadowbox_seek_back">Seek backward</string>
     <string name="shadowbox_seek_forward">Seek forward</string>
     <string name="shadowbox_volume">Video volume</string>
+    <string name="shadowbox_open_community">Open community</string>
+    <string name="shadowbox_like_action">Upvote. Long press to downvote.</string>
+    <string name="shadowbox_close">Back to feed</string>
     <string name="subscribe_to_community">Subscribe to r/%1$s</string>
     <string name="add_community_to_multireddit">Add r/%1$s to a multireddit</string>
     <string name="create_multireddit_from_search">Create a multireddit with this community already selected.</string>

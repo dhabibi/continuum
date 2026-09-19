@@ -9,8 +9,10 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.FragmentManager
+import androidx.core.view.updateLayoutParams
 import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.RequestManager
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
@@ -21,6 +23,8 @@ import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase
 import ml.docilealligator.infinityforreddit.account.Account
 import ml.docilealligator.infinityforreddit.account.AccountScope
 import ml.docilealligator.infinityforreddit.activities.BaseActivity
+import ml.docilealligator.infinityforreddit.activities.ViewSubredditDetailActivity
+import ml.docilealligator.infinityforreddit.activities.ViewUserDetailActivity
 import ml.docilealligator.infinityforreddit.activities.ViewPostDetailActivity
 import ml.docilealligator.infinityforreddit.asynctasks.LoadSubredditIcon
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.PostOptionsBottomSheetFragment
@@ -44,8 +48,8 @@ import retrofit2.Retrofit
 import java.util.concurrent.Executor
 
 /**
- * The bottom info panel every Shadowbox page shows: title, subreddit and time, score, comment
- * count, and the upvote / downvote / save / fullscreen / more actions. One binder for every page
+ * The compact caption and action rail every Shadowbox page shows: title, subreddit and time, score, comment
+ * count, and the like / comment / save / share actions. One binder for every page
  * type, so the panel is the same panel on every page.
  *
  * Voting and saving mirror the feed's PostRecyclerViewAdapter: optimistic update, restore on
@@ -65,13 +69,10 @@ class ShadowboxInfoPanel(
     customThemeWrapper: CustomThemeWrapper,
     private val fragmentManager: FragmentManager,
     private val isNsfwSubreddit: Boolean,
-    private val onMarkPostRead: (Post, Int) -> Unit,
-    private val onOpenFullViewer: () -> Unit
+    private val onMarkPostRead: (Post, Int) -> Unit
 ) {
-    private val upvotedColor = customThemeWrapper.upvoted
+    private val upvotedColor = Color.rgb(255, 45, 85)
     private val downvotedColor = customThemeWrapper.downvoted
-    private val subredditColor = customThemeWrapper.subreddit
-    private val usernameColor = customThemeWrapper.username
     private val postTypeTextColor = customThemeWrapper.postTypeTextColor
     private val flairBackgroundColor = customThemeWrapper.flairBackgroundColor
     private val flairTextColor = customThemeWrapper.flairTextColor
@@ -84,10 +85,6 @@ class ShadowboxInfoPanel(
         Post.GALLERY_TYPE to customThemeWrapper.galleryTypeBackgroundColor,
         Post.TEXT_TYPE to customThemeWrapper.textTypeBackgroundColor
     )
-    private val showElapsedTime = sharedPreferences.getBoolean(SharedPreferencesUtils.SHOW_ELAPSED_TIME_KEY, false)
-    private val timeFormatPattern = sharedPreferences.getString(
-        SharedPreferencesUtils.TIME_FORMAT_KEY, SharedPreferencesUtils.TIME_FORMAT_DEFAULT_VALUE
-    ) ?: SharedPreferencesUtils.TIME_FORMAT_DEFAULT_VALUE
     private val showAbsoluteNumberOfVotes = sharedPreferences.getBoolean(SharedPreferencesUtils.SHOW_ABSOLUTE_NUMBER_OF_VOTES, true)
     private val hideTheNumberOfVotes = sharedPreferences.getBoolean(SharedPreferencesUtils.HIDE_THE_NUMBER_OF_VOTES, false)
     private val hideTheNumberOfComments = sharedPreferences.getBoolean(SharedPreferencesUtils.HIDE_THE_NUMBER_OF_COMMENTS, false)
@@ -97,7 +94,6 @@ class ShadowboxInfoPanel(
     private val markPostsAsReadAfterVoting = postHistorySharedPreferences.getBoolean(
         AccountScope.key(host.accountName, SharedPreferencesUtils.MARK_POSTS_AS_READ_AFTER_VOTING_BASE), false
     )
-    private val locale = host.resources.configuration.locales[0]
 
     private var post: Post? = null
     private var position = -1
@@ -114,19 +110,36 @@ class ShadowboxInfoPanel(
             binding.scoreTextViewShadowboxInfoPanel.typeface = it
             binding.commentsCountButtonShadowboxInfoPanel.typeface = it
         }
-        binding.titleTextViewShadowboxInfoPanel.setOnClickListener { openComments() }
-        binding.headerShadowboxInfoPanel.setOnClickListener { openComments() }
+        binding.titleTextViewShadowboxInfoPanel.setOnClickListener {
+            it as android.widget.TextView
+            it.maxLines = if (it.maxLines == 2) 6 else 2
+        }
+        binding.iconImageViewShadowboxInfoPanel.setOnClickListener { openCommunity() }
+        binding.subredditNameTextViewShadowboxInfoPanel.setOnClickListener { openCommunity() }
+        binding.userTextViewShadowboxInfoPanel.setOnClickListener {
+            post?.let { host.startActivity(Intent(host, ViewUserDetailActivity::class.java)
+                .putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, it.author)) }
+        }
         binding.commentsCountButtonShadowboxInfoPanel.setOnClickListener { openComments() }
         binding.upvoteButtonShadowboxInfoPanel.setOnClickListener { vote(true) }
+        binding.upvoteButtonShadowboxInfoPanel.setOnLongClickListener { vote(false); true }
         binding.scoreTextViewShadowboxInfoPanel.setOnClickListener { vote(true) }
         binding.downvoteButtonShadowboxInfoPanel.setOnClickListener { vote(false) }
         binding.saveButtonShadowboxInfoPanel.setOnClickListener { toggleSave() }
-        binding.fullscreenButtonShadowboxInfoPanel.setOnClickListener { onOpenFullViewer() }
+        binding.shareButtonShadowboxInfoPanel.setOnClickListener {
+            post?.let { host.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND)
+                .setType("text/plain").putExtra(Intent.EXTRA_TEXT, it.permalink), host.getString(R.string.share))) }
+        }
         binding.moreButtonShadowboxInfoPanel.setOnClickListener { showMoreOptions() }
     }
 
     val root: View
         get() = binding.root
+
+    private fun openCommunity() {
+        post?.let { host.startActivity(Intent(host, ViewSubredditDetailActivity::class.java)
+            .putExtra(ViewSubredditDetailActivity.EXTRA_SUBREDDIT_NAME_KEY, it.subredditName)) }
+    }
 
     fun bind(post: Post, position: Int) {
         this.post = post
@@ -142,15 +155,11 @@ class ShadowboxInfoPanel(
 
         binding.subredditNameTextViewShadowboxInfoPanel.text =
             if (hideSubredditAndUserPrefix) post.subredditName else post.subredditNamePrefixed
-        binding.subredditNameTextViewShadowboxInfoPanel.setTextColor(subredditColor)
+        binding.subredditNameTextViewShadowboxInfoPanel.setTextColor(Color.WHITE)
         binding.userTextViewShadowboxInfoPanel.text =
-            if (hideSubredditAndUserPrefix) post.author else post.authorNamePrefixed
-        binding.userTextViewShadowboxInfoPanel.setTextColor(usernameColor)
-        binding.postTimeTextViewShadowboxInfoPanel.text = if (showElapsedTime) {
-            Utils.getElapsedTime(host, post.postTimeMillis)
-        } else {
-            Utils.getFormattedTime(locale, post.postTimeMillis, timeFormatPattern)
-        }
+            "@" + post.author
+        binding.userTextViewShadowboxInfoPanel.setTextColor(Color.WHITE)
+        binding.postTimeTextViewShadowboxInfoPanel.text = Utils.getElapsedTime(host, post.postTimeMillis)
         loadSubredditIcon(post)
         renderTags(post)
         renderLink(post)
@@ -249,21 +258,29 @@ class ShadowboxInfoPanel(
      * The mute control for a video page, in the tags row where it is reachable with the bar up
      * rather than floating over the media. Hidden, not removed, on every other page.
      */
-    fun showMuteControl(muted: Boolean, onToggle: () -> Unit) {
+    fun showMuteControl(muted: Boolean, onToggle: () -> Unit, onVolume: () -> Unit) {
         binding.muteButtonShadowboxInfoPanel.visibility = View.VISIBLE
         binding.muteButtonShadowboxInfoPanel.setOnClickListener { onToggle() }
+        binding.muteButtonShadowboxInfoPanel.setOnLongClickListener { onVolume(); true }
         setMuted(muted)
     }
 
     fun hideMuteControl() {
-        binding.muteButtonShadowboxInfoPanel.visibility = View.INVISIBLE
+        binding.muteButtonShadowboxInfoPanel.visibility = View.GONE
         binding.muteButtonShadowboxInfoPanel.setOnClickListener(null)
+        binding.muteButtonShadowboxInfoPanel.setOnLongClickListener(null)
     }
 
     fun setMuted(muted: Boolean) {
         binding.muteButtonShadowboxInfoPanel.setIconResource(
             if (muted) R.drawable.ic_mute_24dp else R.drawable.ic_unmute_24dp
         )
+    }
+
+    fun setVolumeControlsExpanded(expanded: Boolean) {
+        binding.captionShadowboxInfoPanel.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            bottomMargin = ((if (expanded) 112 else 60) * host.resources.displayMetrics.density).toInt()
+        }
     }
 
     /** The link's domain, where the feed card shows it: under the tags, not over the media. */
@@ -282,21 +299,21 @@ class ShadowboxInfoPanel(
         val neutral = Color.WHITE
         when (post.voteType) {
             1 -> {
-                binding.upvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_upvote_filled_24dp)
+                binding.upvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_favorite_24dp)
                 binding.upvoteButtonShadowboxInfoPanel.iconTint = ColorStateList.valueOf(upvotedColor)
                 binding.downvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_downvote_24dp)
                 binding.downvoteButtonShadowboxInfoPanel.iconTint = ColorStateList.valueOf(neutral)
                 binding.scoreTextViewShadowboxInfoPanel.setTextColor(upvotedColor)
             }
             -1 -> {
-                binding.upvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_upvote_24dp)
+                binding.upvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_favorite_24dp)
                 binding.upvoteButtonShadowboxInfoPanel.iconTint = ColorStateList.valueOf(neutral)
                 binding.downvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_downvote_filled_24dp)
                 binding.downvoteButtonShadowboxInfoPanel.iconTint = ColorStateList.valueOf(downvotedColor)
                 binding.scoreTextViewShadowboxInfoPanel.setTextColor(downvotedColor)
             }
             else -> {
-                binding.upvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_upvote_24dp)
+                binding.upvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_favorite_24dp)
                 binding.upvoteButtonShadowboxInfoPanel.iconTint = ColorStateList.valueOf(neutral)
                 binding.downvoteButtonShadowboxInfoPanel.setIconResource(R.drawable.ic_downvote_24dp)
                 binding.downvoteButtonShadowboxInfoPanel.iconTint = ColorStateList.valueOf(neutral)
