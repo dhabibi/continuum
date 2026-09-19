@@ -85,8 +85,10 @@ class InlineGifVideoPlayer private constructor(
         val videoAspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
         val viewAspect = image.width.toFloat() / image.height
         val crop = image.scaleType == ImageView.ScaleType.CENTER_CROP
-        val scaleX = if ((videoAspect < viewAspect) != crop) videoAspect / viewAspect else 1f
-        val scaleY = if ((videoAspect > viewAspect) != crop) viewAspect / videoAspect else 1f
+        val widthScale = videoAspect / viewAspect
+        val heightScale = viewAspect / videoAspect
+        val scaleX = if (crop) maxOf(1f, widthScale) else minOf(1f, widthScale)
+        val scaleY = if (crop) maxOf(1f, heightScale) else minOf(1f, heightScale)
         val alignment = when (image.scaleType) {
             ImageView.ScaleType.FIT_START -> 0f
             ImageView.ScaleType.FIT_END -> 1f

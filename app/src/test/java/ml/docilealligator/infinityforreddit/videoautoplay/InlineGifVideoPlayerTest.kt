@@ -56,7 +56,8 @@ class InlineGifVideoPlayerTest {
 
     @Test
     fun `mp4 stays silent and keeps thumbnail and badges until its first frame`() {
-        val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, {})!!
+        var ready = 0
+        val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, { ready++ })!!
         val texture = parent.getChildAt(1) as TextureView
         assertSame(image, parent.getChildAt(0))
         assertSame(badge, parent.getChildAt(2))
@@ -71,6 +72,7 @@ class InlineGifVideoPlayerTest {
         verify(player).addListener(listener.capture())
         listener.firstValue.onRenderedFirstFrame()
         assertEquals(1f, texture.alpha, 0f)
+        assertEquals(1, ready)
         helper.release()
         helper.release()
         assertEquals(2, parent.childCount)

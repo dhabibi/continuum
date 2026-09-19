@@ -2494,7 +2494,17 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                             stopNextClipPreload();
                             releaseInlineGif(holder);
                             setGifAnimating(holder, true);
-                        }, this::scheduleNextClipPreload);
+                        }, () -> {
+                            if (!inlineGifPlayers.containsKey(imageView)) return;
+                            if (holder instanceof PostWithPreviewTypeViewHolder) {
+                                ((PostWithPreviewTypeViewHolder) holder).loadingIndicator.setVisibility(View.GONE);
+                                ((PostWithPreviewTypeViewHolder) holder).loadImageErrorTextView.setVisibility(View.GONE);
+                            } else {
+                                ((PostGalleryViewHolder) holder).binding.progressBarItemPostGallery.setVisibility(View.GONE);
+                                ((PostGalleryViewHolder) holder).binding.loadImageErrorTextViewItemGallery.setVisibility(View.GONE);
+                            }
+                            scheduleNextClipPreload();
+                        });
                 if (player != null) {
                     inlineGifPlayers.put(imageView, player);
                     return;
