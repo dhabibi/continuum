@@ -62,6 +62,7 @@ import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperB
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.UrlMenuBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
 import ml.docilealligator.infinityforreddit.customviews.ImagePreviewHandoff;
+import ml.docilealligator.infinityforreddit.customviews.ImageZoomConfiguration;
 import ml.docilealligator.infinityforreddit.databinding.FragmentViewRedditGalleryImageOrGifBinding;
 import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader;
 import ml.docilealligator.infinityforreddit.post.Post;
@@ -173,14 +174,10 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
                         @Override
                         public void onImageLoaded() {
                             imageHandoff.originalReady();
-                            view.setMinimumDpi(80);
-                            view.setDoubleTapZoomDpi(240);
-                            view.setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_FIXED);
-                            view.setQuickScaleEnabled(true);
                             if (currentRotation != 0) {
                                 view.setOrientation(currentRotation);
                             }
-                            view.resetScaleAndCenter();
+                            ImageZoomConfiguration.configure(view);
                         }
 
                         @Override

@@ -60,6 +60,7 @@ import ml.docilealligator.infinityforreddit.asynctasks.SaveGIFToFile;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
 import ml.docilealligator.infinityforreddit.customviews.ImagePreviewHandoff;
+import ml.docilealligator.infinityforreddit.customviews.ImageZoomConfiguration;
 import ml.docilealligator.infinityforreddit.customviews.slidr.Slidr;
 import ml.docilealligator.infinityforreddit.customviews.slidr.model.SlidrConfig;
 import ml.docilealligator.infinityforreddit.customviews.slidr.model.SlidrPosition;
@@ -307,14 +308,10 @@ public class ViewImageOrGifActivity extends AppCompatActivity
                         @Override
                         public void onImageLoaded() {
                             imageHandoff.originalReady();
-                            view.setMinimumDpi(80);
-                            view.setDoubleTapZoomDpi(240);
-                            view.setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_FIXED);
-                            view.setQuickScaleEnabled(true);
                             if (currentRotation != 0) {
                                 view.setOrientation(currentRotation);
                             }
-                            view.resetScaleAndCenter();
+                            ImageZoomConfiguration.configure(view);
                         }
                     });
                 }

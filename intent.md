@@ -80,3 +80,16 @@ the pagination handoff and distinguish a source-level repair from a phone crash
 reproduction. Work stopped at the 50% usage boundary with source checkpoint
 817515237. Daniel then explicitly authorized continuing until the APK is ready,
 lifting the cutoff for validation, push, build and delivery of this repair.
+
+On September 22, Daniel requested fixing pinch-to-zoom in both TikTok and regular
+viewers, adding a small gallery page-dot indicator, and adding all communities in
+a multireddit to the selected profile's front-page subscriptions from its menu.
+The subscription action must work for local accounts, preserve existing lists
+and favorites, and make the added communities available to Home. Continue the
+existing signed-update delivery workflow for this feedback. His revised global
+AGENTS guidance requests focused GPT-6 Luna Max implementation assignments and
+Serena navigation, with parent integration and review.
+
+During this feedback batch Daniel reported a VPS reboot and reaffirmed that the
+proxy should recover automatically on future boots. Verify actual proxy requests
+as well as the boot configuration, while preserving other VPS services.

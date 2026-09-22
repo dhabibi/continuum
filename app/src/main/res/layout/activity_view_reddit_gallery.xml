@@ -46,6 +46,13 @@
 
                 </com.google.android.material.appbar.AppBarLayout>
 
+                <ml.docilealligator.infinityforreddit.customviews.GalleryPageIndicatorView
+                    android:id="@+id/gallery_page_indicator_view_reddit_gallery_activity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|center_horizontal"
+                    android:layout_marginTop="72dp" />
+
             </FrameLayout>
 
         </androidx.core.widget.NestedScrollView>

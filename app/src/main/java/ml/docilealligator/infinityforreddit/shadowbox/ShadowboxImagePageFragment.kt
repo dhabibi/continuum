@@ -9,6 +9,7 @@ import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.piasy.biv.loader.ImageLoader
 import ml.docilealligator.infinityforreddit.SaveMemoryCenterInisdeDownsampleStrategy
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory
+import ml.docilealligator.infinityforreddit.customviews.ImageZoomConfiguration
 import ml.docilealligator.infinityforreddit.databinding.ShadowboxMediaImageBinding
 import java.io.File
 
@@ -57,11 +58,7 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
                 }
                 view.setOnImageEventListener(object : SubsamplingScaleImageView.DefaultOnImageEventListener() {
                     override fun onImageLoaded() {
-                        view.setMinimumDpi(80)
-                        view.setDoubleTapZoomDpi(240)
-                        view.setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_FIXED)
-                        view.isQuickScaleEnabled = true
-                        view.resetScaleAndCenter()
+                        ImageZoomConfiguration.configure(view)
                         hidePreview()
                     }
                 })

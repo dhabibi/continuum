@@ -236,8 +236,17 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
 
     private void setupViewPager(@Nullable Bundle savedInstanceState) {
         sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
+        binding.galleryPageIndicatorViewRedditGalleryActivity.setPageCount(gallery.size());
         binding.viewPagerViewRedditGalleryActivity.setAdapter(sectionsPagerAdapter);
         binding.viewPagerViewRedditGalleryActivity.setOffscreenPageLimit(1);
+        binding.viewPagerViewRedditGalleryActivity.addOnPageChangeListener(
+                new androidx.viewpager.widget.ViewPager.SimpleOnPageChangeListener() {
+                    @Override
+                    public void onPageSelected(int position) {
+                        binding.galleryPageIndicatorViewRedditGalleryActivity.setCurrentPage(position);
+                    }
+                }
+        );
         if (savedInstanceState == null) {
             Bundle resumeState = ResumeState.claim(this);
             if (resumeState != null) {
@@ -251,6 +260,9 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
             }
             binding.viewPagerViewRedditGalleryActivity.setCurrentItem(index, false);
         }
+        binding.galleryPageIndicatorViewRedditGalleryActivity.setCurrentPage(
+                binding.viewPagerViewRedditGalleryActivity.getCurrentItem()
+        );
     }
 
     @Override

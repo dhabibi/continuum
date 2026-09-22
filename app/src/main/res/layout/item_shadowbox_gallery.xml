@@ -13,11 +13,10 @@
 
         <!-- The page reserves the available height before the image arrives. fitCenter keeps
              portrait images inside the viewport, above their caption and the info panel. -->
-        <pl.droidsonroids.gif.GifImageView
+        <ml.docilealligator.infinityforreddit.customviews.ZoomableGifImageView
             android:id="@+id/image_view_item_shadowbox_gallery"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="fitCenter"
             android:contentDescription="@null" />
 
         <!-- Shown when an item has no still to load, or its load failed. The row keeps the

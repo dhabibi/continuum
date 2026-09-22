@@ -49,6 +49,7 @@ import ml.docilealligator.infinityforreddit.activities.ViewImgurMediaActivity;
 import ml.docilealligator.infinityforreddit.asynctasks.SaveBitmapImageToFile;
 import ml.docilealligator.infinityforreddit.bottomsheetfragments.SetAsWallpaperBottomSheetFragment;
 import ml.docilealligator.infinityforreddit.customviews.GlideGifImageViewFactory;
+import ml.docilealligator.infinityforreddit.customviews.ImageZoomConfiguration;
 import ml.docilealligator.infinityforreddit.databinding.FragmentViewImgurImageBinding;
 import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader;
 import ml.docilealligator.infinityforreddit.post.ImgurMedia;
@@ -160,11 +161,8 @@ public class ViewImgurImageFragment extends Fragment {
                     view.setOnImageEventListener(new SubsamplingScaleImageView.DefaultOnImageEventListener() {
                         @Override
                         public void onImageLoaded() {
-                            view.setMinimumDpi(80);
-                            view.setDoubleTapZoomDpi(240);
-                            view.setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_FIXED);
-                            view.setQuickScaleEnabled(true);
                             applyRotation();
+                            ImageZoomConfiguration.configure(view);
                         }
                     });
                 }

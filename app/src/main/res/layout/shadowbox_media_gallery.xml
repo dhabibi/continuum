@@ -1,7 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.recyclerview.widget.RecyclerView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/recycler_view_shadowbox_media_gallery"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black"
-    android:clipToPadding="false" />
+    android:background="@android:color/black">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_view_shadowbox_media_gallery"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:clipToPadding="false" />
+
+    <ml.docilealligator.infinityforreddit.customviews.GalleryPageIndicatorView
+        android:id="@+id/gallery_page_indicator_shadowbox_media_gallery"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="12dp" />
+
+</FrameLayout>

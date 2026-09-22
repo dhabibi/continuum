@@ -11,6 +11,8 @@ import android.view.ViewGroup
 import ml.docilealligator.infinityforreddit.R
 import ml.docilealligator.infinityforreddit.databinding.ActivityShadowboxBinding
 import ml.docilealligator.infinityforreddit.databinding.FragmentShadowboxPageBinding
+import ml.docilealligator.infinityforreddit.databinding.ItemShadowboxGalleryBinding
+import ml.docilealligator.infinityforreddit.databinding.ShadowboxMediaGalleryBinding
 import ml.docilealligator.infinityforreddit.databinding.ShadowboxMediaVideoBinding
 import ml.docilealligator.infinityforreddit.font.ContentFontFamily
 import ml.docilealligator.infinityforreddit.font.ContentFontStyle
@@ -34,8 +36,9 @@ import java.io.File
 class ShadowboxLayoutCaptureTest {
     @Test fun portrait() = capture(393, 852)
     @Test fun smallPhone() = capture(360, 640)
+    @Test fun galleryIndicator() = capture(393, 852, gallery = true)
 
-    private fun capture(widthDp: Int, heightDp: Int) {
+    private fun capture(widthDp: Int, heightDp: Int, gallery: Boolean = false) {
         RuntimeEnvironment.setQualifiers("+sw${widthDp}dp-w${widthDp}dp-h${heightDp}dp-port-xhdpi")
         val controller = Robolectric.buildActivity(Activity::class.java)
         val activity = controller.get()
@@ -50,22 +53,32 @@ class ShadowboxLayoutCaptureTest {
         screen.root.addView(page.root, 0)
         page.root.background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
             intArrayOf(Color.rgb(11, 45, 57), Color.rgb(30, 35, 50), Color.BLACK))
-        val video = ShadowboxMediaVideoBinding.inflate(activity.layoutInflater, page.mediaContainerShadowboxPageFragment, true)
-        ShadowboxVideoPageFragment.attachControls(video.playbackControlsShadowbox, page.root)
-        video.root.setBackgroundColor(Color.TRANSPARENT)
-        video.playerViewShadowboxMediaVideo.visibility = View.INVISIBLE
-        video.previewImageViewShadowboxMediaVideo.visibility = View.GONE
-        video.progressBarShadowboxMediaVideo.visibility = View.GONE
-        video.playButtonShadowboxMediaVideo.visibility = View.GONE
-        video.playbackControlsShadowbox.visibility = View.VISIBLE
-        video.seekPositionShadowbox.progress = 3200
-        video.seekPositionShadowbox.secondaryProgress = 6200
-        video.seekPositionShadowbox.thumb.alpha = 0
-        if (heightDp < 700) {
-            video.playbackTimesShadowbox.visibility = View.VISIBLE
-            video.playbackPositionShadowbox.text = "0:12"
-            video.playbackDurationShadowbox.text = "0:38"
-            video.playButtonShadowboxMediaVideo.visibility = View.VISIBLE
+        if (gallery) {
+            val media = ShadowboxMediaGalleryBinding.inflate(activity.layoutInflater, page.mediaContainerShadowboxPageFragment, true)
+            // Exercise the actual tile's custom-view XML constructor as part of this render.
+            ItemShadowboxGalleryBinding.inflate(activity.layoutInflater, media.recyclerViewShadowboxMediaGallery, false)
+            media.root.setBackgroundColor(Color.TRANSPARENT)
+            media.recyclerViewShadowboxMediaGallery.visibility = View.INVISIBLE
+            media.galleryPageIndicatorShadowboxMediaGallery.setPageCount(5)
+            media.galleryPageIndicatorShadowboxMediaGallery.setCurrentPage(2)
+        } else {
+            val video = ShadowboxMediaVideoBinding.inflate(activity.layoutInflater, page.mediaContainerShadowboxPageFragment, true)
+            ShadowboxVideoPageFragment.attachControls(video.playbackControlsShadowbox, page.root)
+            video.root.setBackgroundColor(Color.TRANSPARENT)
+            video.playerViewShadowboxMediaVideo.visibility = View.INVISIBLE
+            video.previewImageViewShadowboxMediaVideo.visibility = View.GONE
+            video.progressBarShadowboxMediaVideo.visibility = View.GONE
+            video.playButtonShadowboxMediaVideo.visibility = View.GONE
+            video.playbackControlsShadowbox.visibility = View.VISIBLE
+            video.seekPositionShadowbox.progress = 3200
+            video.seekPositionShadowbox.secondaryProgress = 6200
+            video.seekPositionShadowbox.thumb.alpha = 0
+            if (heightDp < 700) {
+                video.playbackTimesShadowbox.visibility = View.VISIBLE
+                video.playbackPositionShadowbox.text = "0:12"
+                video.playbackDurationShadowbox.text = "0:38"
+                video.playButtonShadowboxMediaVideo.visibility = View.VISIBLE
+            }
         }
         val info = page.infoPanelShadowboxPageFragment
         info.userTextViewShadowboxInfoPanel.text = "@skywatcher"
@@ -76,7 +89,7 @@ class ShadowboxLayoutCaptureTest {
         info.commentsCountButtonShadowboxInfoPanel.text = "105"
         info.iconImageViewShadowboxInfoPanel.setImageResource(R.drawable.subreddit_default_icon)
         info.typeTextViewShadowboxInfoPanel.visibility = View.GONE
-        info.muteButtonShadowboxInfoPanel.visibility = View.VISIBLE
+        info.muteButtonShadowboxInfoPanel.visibility = if (gallery) View.GONE else View.VISIBLE
         activity.setContentView(screen.root)
         controller.start().resume().visible()
         val density = activity.resources.displayMetrics.density
@@ -87,7 +100,8 @@ class ShadowboxLayoutCaptureTest {
         screen.root.layout(0, 0, width, height)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         screen.root.draw(Canvas(bitmap))
-        val output = File("build/outputs/shadowbox-preview/shadowbox-${widthDp}x${heightDp}.png")
+        val prefix = if (gallery) "shadowbox-gallery" else "shadowbox"
+        val output = File("build/outputs/shadowbox-preview/${prefix}-${widthDp}x${heightDp}.png")
         output.parentFile!!.mkdirs()
         output.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()

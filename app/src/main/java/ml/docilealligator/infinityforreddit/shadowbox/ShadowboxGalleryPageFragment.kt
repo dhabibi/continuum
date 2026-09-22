@@ -14,7 +14,9 @@ import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.DrawableImageViewTarget
 import com.bumptech.glide.request.target.Target
+import ml.docilealligator.infinityforreddit.SaveMemoryCenterInisdeDownsampleStrategy
 import ml.docilealligator.infinityforreddit.customviews.LinearLayoutManagerBugFixed
 import ml.docilealligator.infinityforreddit.databinding.ItemShadowboxGalleryBinding
 import ml.docilealligator.infinityforreddit.databinding.ShadowboxMediaGalleryBinding
@@ -61,9 +63,21 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         _binding = binding
         binding.recyclerViewShadowboxMediaGallery.layoutManager =
             LinearLayoutManagerBugFixed(host, RecyclerView.HORIZONTAL, false)
-        PagerSnapHelper().attachToRecyclerView(binding.recyclerViewShadowboxMediaGallery)
-        // Tapping anywhere in the list toggles the chrome, exactly as tapping an image page does;
-        // the panel's fullscreen button opens the gallery viewer on whichever item is in view.
+        val pagerSnapHelper = PagerSnapHelper()
+        pagerSnapHelper.attachToRecyclerView(binding.recyclerViewShadowboxMediaGallery)
+        binding.galleryPageIndicatorShadowboxMediaGallery.setPageCount(post.gallery?.size ?: 0)
+        binding.recyclerViewShadowboxMediaGallery.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                updatePageIndicator(recyclerView, pagerSnapHelper)
+            }
+
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    updatePageIndicator(recyclerView, pagerSnapHelper)
+                }
+            }
+        })
+        // Taps toggle the chrome; horizontal gestures move through the gallery.
         addTapToToggleChrome(binding.recyclerViewShadowboxMediaGallery)
     }
 
@@ -92,10 +106,23 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
     private fun applyListPadding() {
         // The panel's own height already includes the bottom inset it is padded by.
-        _binding?.recyclerViewShadowboxMediaGallery?.updatePadding(
+        val binding = _binding ?: return
+        binding.recyclerViewShadowboxMediaGallery.updatePadding(
             left = insets.left, top = insets.top, right = insets.right,
             bottom = maxOf(panelHeight, insets.bottom)
         )
+        val indicatorParams = binding.galleryPageIndicatorShadowboxMediaGallery.layoutParams as ViewGroup.MarginLayoutParams
+        indicatorParams.topMargin = insets.top + (12 * resources.displayMetrics.density).toInt()
+        binding.galleryPageIndicatorShadowboxMediaGallery.layoutParams = indicatorParams
+    }
+
+    private fun updatePageIndicator(recyclerView: RecyclerView, snapHelper: PagerSnapHelper) {
+        val layoutManager = recyclerView.layoutManager ?: return
+        val snappedView = snapHelper.findSnapView(layoutManager) ?: return
+        val page = layoutManager.getPosition(snappedView)
+        if (page != RecyclerView.NO_POSITION) {
+            _binding?.galleryPageIndicatorShadowboxMediaGallery?.setCurrentPage(page)
+        }
     }
 
     override fun onDestroyView() {
@@ -117,15 +144,27 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
         override fun onViewRecycled(holder: GalleryViewHolder) {
             glide.clear(holder.binding.imageViewItemShadowboxGallery)
+            holder.prepareForRecycling()
         }
     }
 
     private inner class GalleryViewHolder(val binding: ItemShadowboxGalleryBinding) : RecyclerView.ViewHolder(binding.root) {
+        private var boundItemUrl: String? = null
+        private var zoomSourceRequestedFor: String? = null
+
         init {
             host.typeface?.let { binding.captionTextViewItemShadowboxGallery.typeface = it }
         }
 
         fun bind(item: Post.Gallery, position: Int) {
+            boundItemUrl = item.url
+            zoomSourceRequestedFor = null
+            binding.imageViewItemShadowboxGallery.resetZoom()
+            binding.imageViewItemShadowboxGallery.setOnZoomGestureStartedListener {
+                if (item.mediaType == Post.Gallery.TYPE_IMAGE) {
+                    loadFullResolutionImageForZoom(item, position)
+                }
+            }
             binding.errorImageViewItemShadowboxGallery.visibility = View.GONE
             binding.playBadgeImageViewItemShadowboxGallery.visibility =
                 if (item.mediaType == Post.Gallery.TYPE_VIDEO) View.VISIBLE else View.GONE
@@ -181,6 +220,42 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
             // No per-item click: it would fight the tap-to-toggle rule, and the fullscreen button
             // already opens the item the user is looking at.
             binding.root.isClickable = false
+        }
+
+        fun prepareForRecycling() {
+            boundItemUrl = null
+            zoomSourceRequestedFor = null
+            binding.imageViewItemShadowboxGallery.setOnZoomGestureStartedListener(null)
+            binding.imageViewItemShadowboxGallery.resetZoom()
+        }
+
+        private fun loadFullResolutionImageForZoom(item: Post.Gallery, position: Int) {
+            if (zoomSourceRequestedFor == item.url) return
+            zoomSourceRequestedFor = item.url
+
+            val imageView = binding.imageViewItemShadowboxGallery
+            val postPreview = if (position == 0) postPreviewUrl?.takeUnless { it == item.url } else null
+            val thumbnailUrl = item.feedPreviewUrl?.takeUnless { it == item.url } ?: postPreview ?: item.url
+            val fullResolutionRequest = glide.load(item.url)
+                .fitCenter()
+                .downsample(SaveMemoryCenterInisdeDownsampleStrategy(maxResolution))
+                .override(tileWidth * MAX_ZOOMED_TILE_SCALE, tileHeight * MAX_ZOOMED_TILE_SCALE)
+                .dontAnimate()
+                .thumbnail(tileRequest(thumbnailUrl))
+
+            // Cancel the bounded tile request before starting the original. The thumbnail above
+            // keeps it visible while the larger decode arrives; the transform stays with the view.
+            imageView.preserveZoomForNextDrawable()
+            glide.clear(imageView)
+            fullResolutionRequest.into(object : DrawableImageViewTarget(imageView) {
+                override fun onLoadFailed(errorDrawable: Drawable?) {
+                    imageView.finishImageUpgradeAfterFailure()
+                    if (boundItemUrl == item.url) {
+                        // Keep the still visible and let a later gesture try the original again.
+                        zoomSourceRequestedFor = null
+                    }
+                }
+            })
         }
 
         /**
@@ -268,3 +343,5 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         }
     }
 }
+
+private const val MAX_ZOOMED_TILE_SCALE = 3
