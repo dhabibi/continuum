@@ -29,6 +29,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_add_multireddit_to_front_page"
+        android:orderInCategory="5"
+        android:title="@string/multireddit_add_to_front_page"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_list_subreddits_view_multi_reddit_detail_activity"
         android:orderInCategory="5"
         android:title="@string/action_list_subreddits"

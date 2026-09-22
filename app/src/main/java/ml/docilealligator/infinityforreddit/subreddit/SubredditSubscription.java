@@ -93,7 +93,7 @@ public class SubredditSubscription {
 
                                     @Override
                                     public void onFetchSubredditDataFail(boolean isQuarantined) {
-
+                                        subredditSubscriptionListener.onSubredditSubscriptionFail();
                                     }
                                 });
                     } else {

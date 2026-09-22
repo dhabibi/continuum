@@ -63,6 +63,7 @@ import ml.docilealligator.infinityforreddit.message.InboxCount;
 import ml.docilealligator.infinityforreddit.multireddit.DeleteMultiReddit;
 import ml.docilealligator.infinityforreddit.multireddit.ExpandedSubredditInMultiReddit;
 import ml.docilealligator.infinityforreddit.multireddit.FetchMultiRedditInfo;
+import ml.docilealligator.infinityforreddit.multireddit.MultiredditFrontPage;
 import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
 import ml.docilealligator.infinityforreddit.post.MarkPostAsReadInterface;
 import ml.docilealligator.infinityforreddit.post.Post;
@@ -955,6 +956,10 @@ public class ViewMultiRedditDetailActivity extends BaseActivity implements SortT
             return true;
         } else if (itemId == R.id.action_change_post_layout_view_multi_reddit_detail_activity) {
             showPostLayoutBottomSheetFragment();
+            return true;
+        } else if (itemId == R.id.action_add_multireddit_to_front_page) {
+            MultiredditFrontPage.add(this, mExecutor, mRedditDataRoomDatabase, mRetrofit,
+                    mOauthRetrofit, accountName, accessToken, multiPath);
             return true;
         } else if (itemId == R.id.action_list_subreddits_view_multi_reddit_detail_activity) {
             if (multiReddit != null && multiReddit.getSubreddits() != null && !multiReddit.getSubreddits().isEmpty()) {

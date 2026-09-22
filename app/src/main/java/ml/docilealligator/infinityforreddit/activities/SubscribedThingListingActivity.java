@@ -77,6 +77,7 @@ import ml.docilealligator.infinityforreddit.fragments.SubscribedSubredditsListin
 import ml.docilealligator.infinityforreddit.multireddit.DeleteMultiReddit;
 import ml.docilealligator.infinityforreddit.multireddit.FetchMyMultiReddits;
 import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
+import ml.docilealligator.infinityforreddit.multireddit.MultiredditFrontPage;
 import ml.docilealligator.infinityforreddit.multireddit.LocalMultiredditMoveDialog;
 import ml.docilealligator.infinityforreddit.multireddit.LegacyMultiredditLink;
 import ml.docilealligator.infinityforreddit.network.AnyAccountAccessTokenAuthenticator;
@@ -750,6 +751,11 @@ public class SubscribedThingListingActivity extends BaseActivity
     public void moveLocalMultiReddit(MultiReddit multiReddit) {
         LocalMultiredditMoveDialog.showDestination(this, mExecutor, mRedditDataRoomDatabase,
                 java.util.Collections.singletonList(multiReddit));
+    }
+
+    public void addMultiRedditToFrontPage(MultiReddit multiReddit) {
+        MultiredditFrontPage.add(this, mExecutor, mRedditDataRoomDatabase, mRetrofit,
+                mOauthRetrofit, accountName, accessToken, multiReddit.getPath());
     }
 
     private void showGoToSubredditDialog() {

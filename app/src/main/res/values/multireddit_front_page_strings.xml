@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="multireddit_add_to_front_page">Add to front page</string>
+    <string name="multireddit_front_page_loading">Adding communities to your front page…</string>
+    <string name="multireddit_front_page_empty">This multireddit has no communities to add.</string>
+    <string name="multireddit_front_page_partial">Added: %1$d\nAlready subscribed: %2$d\nCould not add: %3$d. Try again to retry these communities.</string>
+</resources>

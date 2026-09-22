@@ -41,6 +41,11 @@ public class MultiRedditOptionsBottomSheetFragment extends LandscapeExpandedRoun
 
         MultiReddit multiReddit = getArguments().getParcelable(EXTRA_MULTI_REDDIT);
 
+        binding.addMultiredditToFrontPage.setOnClickListener(view -> {
+            if (multiReddit != null) subscribedThingListingActivity.addMultiRedditToFrontPage(multiReddit);
+            dismiss();
+        });
+
         binding.moveLocalMultireddit.setVisibility(Account.isAnonymous(subscribedThingListingActivity.accountName)
                 && multiReddit != null && !multiReddit.isFollowed() ? View.VISIBLE : View.GONE);
         binding.moveLocalMultireddit.setOnClickListener(view -> {
