@@ -8,7 +8,9 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
 import ml.docilealligator.infinityforreddit.R
+import ml.docilealligator.infinityforreddit.customviews.LinearLayoutManagerBugFixed
 import ml.docilealligator.infinityforreddit.databinding.ActivityShadowboxBinding
 import ml.docilealligator.infinityforreddit.databinding.FragmentShadowboxPageBinding
 import ml.docilealligator.infinityforreddit.databinding.ItemShadowboxGalleryBinding
@@ -55,6 +57,8 @@ class ShadowboxLayoutCaptureTest {
             intArrayOf(Color.rgb(11, 45, 57), Color.rgb(30, 35, 50), Color.BLACK))
         if (gallery) {
             val media = ShadowboxMediaGalleryBinding.inflate(activity.layoutInflater, page.mediaContainerShadowboxPageFragment, true)
+            media.recyclerViewShadowboxMediaGallery.layoutManager =
+                LinearLayoutManagerBugFixed(activity, RecyclerView.HORIZONTAL, false)
             // Exercise the actual tile's custom-view XML constructor as part of this render.
             ItemShadowboxGalleryBinding.inflate(activity.layoutInflater, media.recyclerViewShadowboxMediaGallery, false)
             media.root.setBackgroundColor(Color.TRANSPARENT)
