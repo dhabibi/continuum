@@ -8,6 +8,7 @@ import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.util.AttributeSet
 import android.view.View
+import ml.docilealligator.infinityforreddit.R
 import kotlin.math.max
 import kotlin.math.min
 
