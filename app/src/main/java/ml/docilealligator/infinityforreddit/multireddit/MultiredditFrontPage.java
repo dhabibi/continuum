@@ -67,8 +67,10 @@ public final class MultiredditFrontPage {
                 } else {
                     FetchMultiRedditInfo.publicFetchMultiRedditInfo(executor, handler, retrofit, path, this);
                 }
-            } else {
+            } else if (accessToken != null) {
                 FetchMultiRedditInfo.fetchMultiRedditInfo(executor, handler, oauthRetrofit, accessToken, path, this);
+            } else {
+                failed();
             }
         }
 
