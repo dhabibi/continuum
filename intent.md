@@ -93,3 +93,11 @@ Serena navigation, with parent integration and review.
 During this feedback batch Daniel reported a VPS reboot and reaffirmed that the
 proxy should recover automatically on future boots. Verify actual proxy requests
 as well as the boot configuration, while preserving other VPS services.
+
+The next feedback requests pinch-to-zoom for TikTok videos, faster galleries both
+on opening and when swiping, and faster feed pagination. Daniel also requests a
+second TikTok mode limited to videos/GIFs with sound. Both variants must be real
+independent feeds rather than overlays on regular-feed posts, directly available
+in the sidebar with Home, multireddit, and subreddit source selection. Preserve
+profile isolation, privacy/data-saving settings, original media quality, playback
+controls, and the existing signed APK update path.

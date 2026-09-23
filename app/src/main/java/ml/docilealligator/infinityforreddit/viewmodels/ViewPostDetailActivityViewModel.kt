@@ -7,6 +7,10 @@ import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -19,7 +23,6 @@ import ml.docilealligator.infinityforreddit.post.ParsePost
 import ml.docilealligator.infinityforreddit.post.Post
 import ml.docilealligator.infinityforreddit.post.PostType
 import ml.docilealligator.infinityforreddit.postfilter.PostFilter
-import ml.docilealligator.infinityforreddit.readpost.ReadPost
 import ml.docilealligator.infinityforreddit.readpost.ReadPostType
 import ml.docilealligator.infinityforreddit.readpost.ReadPostsListInterface
 import ml.docilealligator.infinityforreddit.thing.SortType
@@ -42,6 +45,16 @@ class ViewPostDetailActivityViewModel(
     var post: Post? = null
 
     var posts: ArrayList<Post>? = null
+
+    var currentFeedRequest: PostFeedRequest? = null
+        private set
+
+    private var loadJob: Job? = null
+    private var requestGeneration = 0L
+    private var completedBatchId = 0L
+    private var listingExhausted = false
+    private var emptyLocalSource = false
+    private var lastReadPostTime: Long? = null
 
     // Held here (not on the activity) so Read Aloud survives configuration changes such as rotation.
     private var textToSpeechHelper: TextToSpeechHelper? = null
@@ -78,8 +91,76 @@ class ViewPostDetailActivityViewModel(
     data class LoadMorePostsState(
         val status: Int,
         val nNewPosts: Int = 0,
-        val changePage: Boolean = false
+        val changePage: Boolean = false,
+        val hasMore: Boolean = status != LoadingMorePostsStatus.NO_MORE_POSTS,
+        val batchId: Long = 0,
+        val emptySource: Boolean = false,
     )
+
+    /** Start an independent listing, canceling every pending result from the previous source. */
+    fun startFeed(request: PostFeedRequest) {
+        stopFeedLoading()
+        stopTextToSpeech()
+        currentFeedRequest = request
+        posts = ArrayList()
+        post = null
+        lastListingCursor = null
+        lastReadPostTime = null
+        listingExhausted = false
+        emptyLocalSource = false
+        publishLoadState(LoadingMorePostsStatus.NOT_LOADING)
+        loadNextFeedPage()
+    }
+
+    fun loadNextFeedPage() {
+        val request = currentFeedRequest ?: return
+        fetchMorePosts(
+            request.accessToken, request.accountName, false, request.postType,
+            request.subredditName, request.concatenatedSubredditNames, request.username,
+            request.userWhere, request.multiPath, request.query, request.sortType,
+            request.sortTime, request.postFilter, request.readPostType,
+            request.readPostsList, request.mediaOnly,
+        )
+    }
+
+    /** Pause network work without losing the current source, cursor or already loaded posts. */
+    fun stopFeedLoading() {
+        requestGeneration++
+        loadJob?.cancel()
+        loadJob = null
+        if (_loadMorePostsState.value.status == LoadingMorePostsStatus.LOADING) {
+            publishLoadState(LoadingMorePostsStatus.NOT_LOADING)
+        }
+    }
+
+    private fun publishLoadState(status: Int, added: Int = 0, changePage: Boolean = false) {
+        _loadMorePostsState.value = LoadMorePostsState(
+            status, added, changePage, hasMore = !listingExhausted, batchId = completedBatchId,
+            emptySource = emptyLocalSource,
+        )
+    }
+
+    private fun completeBatch(added: Int, changePage: Boolean) {
+        completedBatchId++
+        publishLoadState(
+            if (added == 0 && listingExhausted) LoadingMorePostsStatus.NO_MORE_POSTS
+            else LoadingMorePostsStatus.LOADED,
+            added, changePage,
+        )
+    }
+
+    private suspend fun localFeedNames(postType: Int, accountName: String, multiPath: String?): String? =
+        withContext(Dispatchers.IO) {
+            val names = if (postType == PostType.ANONYMOUS_MULTIREDDIT) {
+                redditDataRoomDatabase.anonymousMultiredditSubredditDao()
+                    .getAllAnonymousMultiRedditSubreddits(multiPath).map { it.subredditName }
+            } else {
+                redditDataRoomDatabase.subscribedSubredditDao()
+                    .getAllSubscribedSubredditsList(accountName).map { it.name }
+            }
+            names.distinctBy { it.lowercase(java.util.Locale.ROOT) }
+                .joinToString("+").takeIf { it.isNotEmpty() }
+        }
 
     fun getPost(index: Int): Post? {
         return posts?.getOrNull(index)
@@ -107,59 +188,80 @@ class ViewPostDetailActivityViewModel(
         readPostsList: ReadPostsListInterface?,
         mediaOnly: Boolean
     ) {
-        viewModelScope.launch {
-            if (_loadMorePostsState.value.status == LoadingMorePostsStatus.LOADING
-                || _loadMorePostsState.value.status == LoadingMorePostsStatus.NO_MORE_POSTS) {
-                return@launch
-            }
+        if (_loadMorePostsState.value.status == LoadingMorePostsStatus.LOADING) return
+        if (listingExhausted || _loadMorePostsState.value.status == LoadingMorePostsStatus.NO_MORE_POSTS) {
+            listingExhausted = true
+            publishLoadState(LoadingMorePostsStatus.NO_MORE_POSTS)
+            return
+        }
+        if (postType == PostType.DUPLICATES) {
+            // This loader has no duplicate-discussions endpoint; never substitute the Home feed.
+            listingExhausted = true
+            publishLoadState(LoadingMorePostsStatus.NO_MORE_POSTS)
+            return
+        }
+        if (postType != PostType.READ_POSTS && sortType == null) {
+            publishLoadState(LoadingMorePostsStatus.FAILED)
+            return
+        }
 
-            // The duplicates ("Other Discussions") listing is loaded up front by PostPagingSource and
-            // there is no duplicates endpoint on this swipe-detail "load more" path. Mark the list as
-            // complete instead of falling through to the home Best feed (which would append unrelated
-            // posts). The guard above then stops further fetches.
-            if (postType == PostType.DUPLICATES) {
-                _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.NO_MORE_POSTS)
-                return@launch
-            }
-
-            _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.LOADING)
-
-            if (postType != PostType.READ_POSTS) {
-                // Read posts are the one listing with no sort of its own — HistoryPostFragment sends
-                // none, and the branch below never asks for one, so a non-null parameter here threw
-                // on entry for a call that would not have used it. Every other listing puts the sort
-                // in the request path, so without one there is no request to make.
-                if (sortType == null) {
-                    _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.NO_MORE_POSTS)
+        val generation = requestGeneration
+        publishLoadState(LoadingMorePostsStatus.LOADING)
+        loadJob = viewModelScope.launch {
+            try {
+                if (generation != requestGeneration) return@launch
+                val anonymous = accountName == Account.ANONYMOUS_ACCOUNT
+                val api = (if (anonymous) retrofit else oauthRetrofit).create(RedditAPIKt::class.java)
+                val localSource = postType == PostType.ANONYMOUS_FRONT_PAGE || postType == PostType.ANONYMOUS_MULTIREDDIT
+                val sourceSubreddits = if (localSource) {
+                    concatenatedSubredditNames?.takeIf { it.isNotBlank() }
+                        ?: localFeedNames(postType, accountName, multiPath)
+                } else null
+                if (localSource && sourceSubreddits == null) {
+                    emptyLocalSource = true
+                    listingExhausted = true
+                    completeBatch(0, changePage)
                     return@launch
                 }
 
-                try {
-                    val api: RedditAPIKt =
-                        (if (accountName == Account.ANONYMOUS_ACCOUNT) retrofit else oauthRetrofit).create(
-                            RedditAPIKt::class.java
-                        )
-                    // A page every post of which is filtered out adds nothing, and stopping there
-                    // would end the swipe list for good on the first run of link posts even though
-                    // the listing goes on. Keep asking, bounded, exactly as PostPagingSource does
-                    // for the feed itself (issue #377).
-                    var barrenPages = 0
-                    while (true) {
-                        val response: Response<String>?
-                        val afterKey = lastListingCursor ?: posts?.let {
-                            it.lastOrNull()?.fullName
+                var barrenPages = 0
+                while (true) {
+                    currentCoroutineContext().ensureActive()
+                    val afterKey = lastListingCursor ?: posts?.lastOrNull()?.fullName
+                    val requestLimit = if (currentFeedRequest != null && afterKey == null) 40
+                        else APIUtils.subredditAPICallLimit(subredditName)
+                    val response: Response<String>?
+                    var historyCursor: Long? = null
+                    var historyCursorBefore: Long? = null
+                    if (postType == PostType.READ_POSTS) {
+                        val lastItem = lastReadPostTime ?: posts?.lastOrNull()?.let {
+                            redditDataRoomDatabase.readPostDaoKt().getReadPost(it.id)?.time
+                        } ?: Long.MAX_VALUE
+                        val readPosts = redditDataRoomDatabase.readPostDaoKt()
+                            .getAllReadPosts(accountName, lastItem, readPostType)
+                        if (readPosts.isEmpty()) {
+                            listingExhausted = true
+                            completeBatch(0, changePage)
+                            return@launch
                         }
+                        historyCursorBefore = lastItem
+                        historyCursor = readPosts.last().time
+                        val ids = readPosts.joinToString(",") { "t3_" + it.id }
+                        response = if (anonymous) api.getInfo(ids)
+                            else api.getInfoOauth(ids, APIUtils.getOAuthHeader(accessToken))
+                    } else {
+                        val listingSort = requireNotNull(sortType)
                         when (postType) {
                             PostType.SUBREDDIT -> response = subredditName?.let {
                                 if (accountName == Account.ANONYMOUS_ACCOUNT) {
                                     api.getSubredditBestPosts(
-                                        subredditName, sortType, sortTime, afterKey,
-                                        APIUtils.subredditAPICallLimit(subredditName)
+                                        subredditName, listingSort, sortTime, afterKey,
+                                        requestLimit
                                     )
                                 } else {
                                     api.getSubredditBestPostsOauth(
-                                        subredditName, sortType,
-                                        sortTime, afterKey, APIUtils.subredditAPICallLimit(subredditName),
+                                        subredditName, listingSort,
+                                        sortTime, afterKey, requestLimit,
                                         APIUtils.getOAuthHeader(accessToken)
                                     )
                                 }
@@ -167,11 +269,11 @@ class ViewPostDetailActivityViewModel(
 
                             PostType.USER -> response = username?.let {
                                 if (accountName == Account.ANONYMOUS_ACCOUNT) {
-                                    api.getUserPosts(username, afterKey, sortType, sortTime)
+                                    api.getUserPosts(username, afterKey, listingSort, sortTime)
                                 } else {
                                     userWhere?.let {
                                         api.getUserPostsOauth(
-                                            username, userWhere, afterKey, sortType,
+                                            username, userWhere, afterKey, listingSort,
                                             sortTime, APIUtils.getOAuthHeader(accessToken)
                                         )
                                     }
@@ -181,11 +283,11 @@ class ViewPostDetailActivityViewModel(
                             PostType.SEARCH -> response = if (subredditName == null) {
                                 if (accountName == Account.ANONYMOUS_ACCOUNT) {
                                     api.searchPosts(
-                                        query, afterKey, sortType, sortTime
+                                        query, afterKey, listingSort, sortTime
                                     )
                                 } else {
                                     api.searchPostsOauth(
-                                        query, afterKey, sortType,
+                                        query, afterKey, listingSort,
                                         sortTime, APIUtils.getOAuthHeader(accessToken)
                                     )
                                 }
@@ -193,12 +295,12 @@ class ViewPostDetailActivityViewModel(
                                 if (accountName == Account.ANONYMOUS_ACCOUNT) {
                                     api.searchPostsInSpecificSubreddit(
                                         subredditName, query,
-                                        sortType, sortTime, afterKey
+                                        listingSort, sortTime, afterKey
                                     )
                                 } else {
                                     api.searchPostsInSpecificSubredditOauth(
                                         subredditName, query,
-                                        sortType, sortTime, afterKey,
+                                        listingSort, sortTime, afterKey,
                                         APIUtils.getOAuthHeader(accessToken)
                                     )
                                 }
@@ -215,81 +317,47 @@ class ViewPostDetailActivityViewModel(
                                 }
                             }
 
-                            PostType.ANONYMOUS_FRONT_PAGE, PostType.ANONYMOUS_MULTIREDDIT -> response = concatenatedSubredditNames?.let {
+                            PostType.ANONYMOUS_FRONT_PAGE, PostType.ANONYMOUS_MULTIREDDIT -> response = sourceSubreddits?.let {
                                 api.getAnonymousFrontPageOrMultiredditPosts(
-                                    concatenatedSubredditNames, sortType,
-                                    sortTime, afterKey, APIUtils.subredditAPICallLimit(subredditName),
+                                    sourceSubreddits, listingSort,
+                                    sortTime, afterKey, requestLimit,
                                     APIUtils.ANONYMOUS_USER_AGENT
                                 )
                             }
 
                             else -> response = api.getBestPosts(
-                                sortType, sortTime, afterKey,
-                                APIUtils.getOAuthHeader(accessToken)
+                                listingSort, sortTime, afterKey,
+                                APIUtils.getOAuthHeader(accessToken), requestLimit
                             )
                         }
-
-                        if (response?.isSuccessful != true) {
-                            _loadMorePostsState.value =
-                                LoadMorePostsState(LoadingMorePostsStatus.FAILED)
-                            return@launch
-                        }
-
-                        val cursorBeforePage = lastListingCursor
-                        val addedPosts =
-                            finalizePosts(response, postFilter, mediaOnly, readPostsList, changePage)
-                        barrenPages++
-                        // Stop on anything gained, on the end of the listing, on a cursor that did
-                        // not move (asking again would re-read the same page), and on the cap. The
-                        // state finalizePosts already set is the right one in every case: LOADED
-                        // when something was added, NO_MORE_POSTS when we gave up or ran out.
-                        if (addedPosts
-                            || lastListingCursor == null
-                            || lastListingCursor == cursorBeforePage
-                            || barrenPages >= MAX_BARREN_SWIPE_PAGES
-                        ) {
-                            break
-                        }
                     }
-                } catch (e: Exception) {
+
+                    if (response?.isSuccessful != true) {
+                        publishLoadState(LoadingMorePostsStatus.FAILED)
+                        return@launch
+                    }
+                    val page = finalizePosts(response, postFilter, mediaOnly, readPostsList, generation)
+                    if (postType == PostType.READ_POSTS) {
+                        lastReadPostTime = historyCursor
+                        listingExhausted = historyCursor == historyCursorBefore
+                    } else {
+                        lastListingCursor = page.cursor
+                        listingExhausted = page.cursor == null || page.cursor == afterKey
+                    }
+                    barrenPages++
+                    if (page.added > 0 || listingExhausted || barrenPages >= MAX_BARREN_SWIPE_PAGES) {
+                        // A filtered batch is still a successful page. Only the upstream cursor
+                        // determines exhaustion; callers can continue when no eligible items remain.
+                        completeBatch(page.added, changePage)
+                        return@launch
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation == requestGeneration) {
                     e.printStackTrace()
-                    _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.FAILED)
-                }
-            } else {
-                val lastItem: Long = posts?.let {
-                    if (!it.isEmpty()) {
-                        redditDataRoomDatabase.readPostDaoKt()
-                            .getReadPost(it.lastOrNull()?.id ?: "")?.time
-                    } else {
-                        0
-                    }
-                } ?: 0
-                val readPosts: MutableList<ReadPost> = redditDataRoomDatabase.readPostDaoKt()
-                    .getAllReadPosts(accountName, lastItem, readPostType)
-                val ids = StringBuilder()
-                for (readPost in readPosts) {
-                    ids.append("t3_").append(readPost.id).append(",")
-                }
-                if (ids.isNotEmpty()) {
-                    ids.deleteCharAt(ids.length - 1)
-                }
-
-                try {
-                    val response = if (accountName == Account.ANONYMOUS_ACCOUNT) {
-                        oauthRetrofit.create(RedditAPIKt::class.java)
-                            .getInfoOauth(ids.toString(), APIUtils.getOAuthHeader(accessToken))
-                    } else {
-                        retrofit.create(RedditAPIKt::class.java).getInfo(ids.toString())
-                    }
-
-                    if (response.isSuccessful) {
-                        finalizePosts(response, postFilter, mediaOnly, readPostsList, changePage)
-                    } else {
-                        _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.FAILED)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.FAILED)
+                    publishLoadState(LoadingMorePostsStatus.FAILED)
                 }
             }
         }
@@ -300,7 +368,7 @@ class ViewPostDetailActivityViewModel(
         postFilter: PostFilter?,
         mediaOnly: Boolean,
         readPostsList: ReadPostsListInterface?
-    ): ArrayList<Post>? {
+    ): ParsedPostPage? {
         val newPosts = ArrayList<Post>()
         try {
             val jsonResponse = JSONObject(response ?: "")
@@ -338,68 +406,45 @@ class ViewPostDetailActivityViewModel(
                 }
             }
 
-            lastListingCursor = ParsePost.getLastItem(jsonResponse)
-
-            return newPosts
+            return ParsedPostPage(newPosts, ParsePost.getLastItem(jsonResponse))
         } catch (e: JSONException) {
             e.printStackTrace()
             return null
         }
     }
 
-    /** Returns whether this page actually added anything to the swipe list. */
+    /** Parse off the UI thread, then append only if this request still owns the source. */
     private suspend fun finalizePosts(
         response: Response<String>,
         postFilter: PostFilter?,
         mediaOnly: Boolean,
         readPostsList: ReadPostsListInterface?,
-        changePage: Boolean
-    ): Boolean {
-        val newPosts = withContext(Dispatchers.Default) {
+        generation: Long,
+    ): AppendedPostPage {
+        val page = withContext(Dispatchers.Default) {
             parsePostsSync(response.body(), postFilter, mediaOnly, readPostsList)
+        } ?: throw JSONException("Invalid Reddit listing response")
+        currentCoroutineContext().ensureActive()
+        if (generation != requestGeneration) {
+            throw CancellationException("Feed source changed")
         }
-        if (newPosts == null) {
-            _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.NO_MORE_POSTS)
-            return false
-        } else {
-            posts?.let { posts ->
-                val currentPostsSize = posts.size
-                val existingPostIds = posts.mapTo(mutableSetOf()) { it.id }
-                for (p in newPosts) {
-                    if (existingPostIds.contains(p.id)) {
-                        continue
-                    }
-
-                    existingPostIds.add(p.id)
-                    posts.add(p)
-                }
-                if (currentPostsSize == posts.size) {
-                    _loadMorePostsState.value = LoadMorePostsState(LoadingMorePostsStatus.NO_MORE_POSTS)
-                    return false
-                } else {
-                    _loadMorePostsState.value = LoadMorePostsState(
-                        LoadingMorePostsStatus.LOADED,
-                        posts.size - currentPostsSize,
-                        changePage
-                    )
-                    return true
-                }
-            } ?: run {
-                posts = newPosts
-                _loadMorePostsState.value = LoadMorePostsState(
-                    LoadingMorePostsStatus.LOADED,
-                    posts?.size ?: 0,
-                    changePage
-                )
-                return newPosts.isNotEmpty()
-            }
+        val target = posts ?: ArrayList<Post>().also { posts = it }
+        val oldSize = target.size
+        val existingIds = target.mapTo(mutableSetOf()) { it.id }
+        for (post in page.posts) {
+            if (existingIds.add(post.id)) target.add(post)
         }
+        return AppendedPostPage(target.size - oldSize, page.cursor)
     }
+
+    private data class ParsedPostPage(val posts: ArrayList<Post>, val cursor: String?)
+
+    private data class AppendedPostPage(val added: Int, val cursor: String?)
 
     companion object {
         /**
          * How many pages the swipe list may pull while every one of them is filtered away to
-         * nothing, before it accepts that there is no more to show.
+         * nothing, before yielding to the UI. The upstream cursor still controls exhaustion.
          */
         private const val MAX_BARREN_SWIPE_PAGES = 5
 

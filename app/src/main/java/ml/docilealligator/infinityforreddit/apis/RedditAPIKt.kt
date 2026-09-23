@@ -226,10 +226,11 @@ interface RedditAPIKt {
         @FieldMap params: Map<String, String>
     ): Response<String>
 
-    @GET("{sortType}?raw_json=1&limit=100")
+    @GET("{sortType}?raw_json=1")
     suspend fun getBestPosts(
         @Path("sortType") sortType: SortType.Type, @Query("t") sortTime: SortType.Time?,
-        @Query("after") lastItem: String?, @HeaderMap headers: Map<String, String>
+        @Query("after") lastItem: String?, @HeaderMap headers: Map<String, String>,
+        @Query("limit") limit: Int = 100
     ): Response<String>
 
     @GET("r/{subredditName}/{sortType}.json?raw_json=1&always_show_media=1")

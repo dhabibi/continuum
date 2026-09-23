@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_tiktok_mode">TikTok mode</string>
+    <string name="action_tiktok_with_sound">TikTok with sound</string>
+    <string name="tiktok_choose_source">Choose a source</string>
+    <string name="tiktok_source_home">Home</string>
+    <string name="tiktok_source_subreddit">Subreddit</string>
+    <string name="tiktok_source_multireddit">Multireddit</string>
+    <string name="tiktok_enter_subreddit">Enter a subreddit name</string>
+    <string name="tiktok_subreddit_name_hint">Subreddit name</string>
+    <string name="tiktok_no_multireddits">No local multireddits are saved in this profile.</string>
+    <string name="tiktok_sound_only_empty">No playable videos with sound in this source.</string>
+    <string name="tiktok_change_sort">Change feed sort</string>
+</resources>

@@ -70,6 +70,11 @@ manifest routing, redirect boundaries, and range/header forwarding. The service
 keeps raw URL encoding and query strings, rewrites Reddit media in JSON and
 manifests, and restricts media redirects to Reddit-owned CDN hosts.
 
+Listing JSON larger than 1 KiB is compressed with gzip when the client accepts
+it. Media streams and byte-range responses retain their existing encoding and
+streaming behavior. A live 100-post sample dropped from about 688 KB to 127 KB;
+Reddit's upstream response time still contributes to overall loading time.
+
 App changes are based on Daniel's supplied patch. The runtime uses the supplied
 proxy design, with client lifecycle cleanup, deduplicated token refresh, strict
 media redirect validation and correct raw-response encoding added for deployment.

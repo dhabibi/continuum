@@ -4,6 +4,8 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.media.AudioManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.graphics.Insets
@@ -22,28 +24,30 @@ import ml.docilealligator.infinityforreddit.ImageOkHttpClient
 import ml.docilealligator.infinityforreddit.Infinity
 import ml.docilealligator.infinityforreddit.R
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase
+import ml.docilealligator.infinityforreddit.FetchPostFilterAndConcatenatedSubredditNames
 import ml.docilealligator.infinityforreddit.account.AccountScope
 import ml.docilealligator.infinityforreddit.activities.BaseActivity
+import ml.docilealligator.infinityforreddit.bottomsheetfragments.SortTimeBottomSheetFragment
+import ml.docilealligator.infinityforreddit.bottomsheetfragments.SortTypeBottomSheetFragment
 import ml.docilealligator.infinityforreddit.customtheme.CustomThemeWrapper
 import ml.docilealligator.infinityforreddit.databinding.ActivityShadowboxBinding
-import ml.docilealligator.infinityforreddit.events.NeedForPostListFromPostFragmentEvent
-import ml.docilealligator.infinityforreddit.events.PostPositionUpdateEventToPostList
 import ml.docilealligator.infinityforreddit.events.PostUpdateEventToPostList
-import ml.docilealligator.infinityforreddit.events.ProvidePostListToViewPostDetailActivityEvent
 import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent
 import ml.docilealligator.infinityforreddit.post.LoadingMorePostsStatus
 import ml.docilealligator.infinityforreddit.post.Post
 import ml.docilealligator.infinityforreddit.post.PostType
-import ml.docilealligator.infinityforreddit.postfilter.PostFilter
+import ml.docilealligator.infinityforreddit.postfilter.PostFilterUsage
 import ml.docilealligator.infinityforreddit.readpost.ReadPostModification
 import ml.docilealligator.infinityforreddit.readpost.ReadPostType
-import ml.docilealligator.infinityforreddit.readpost.ReadPostsListInterface
+import ml.docilealligator.infinityforreddit.readpost.ReadPostsList
 import ml.docilealligator.infinityforreddit.readpost.ReadPostsUtils
 import ml.docilealligator.infinityforreddit.thing.SortType
+import ml.docilealligator.infinityforreddit.thing.SortTypeSelectionCallback
 import ml.docilealligator.infinityforreddit.user.UserProfileImagesBatchLoader
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils
 import ml.docilealligator.infinityforreddit.viewmodels.ViewGalleryViewModel
 import ml.docilealligator.infinityforreddit.viewmodels.ViewPostDetailActivityViewModel
+import ml.docilealligator.infinityforreddit.viewmodels.PostFeedRequest
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import retrofit2.Retrofit
@@ -51,17 +55,8 @@ import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Named
 
-/**
- * Shadowbox Mode: a fullscreen pager that flips through the current feed one post per page.
- *
- * The post list is not passed in the Intent -- a feed's worth of Parcelable posts blows the Binder
- * limit -- but requested from the feed fragment over EventBus, exactly as ViewPostDetailActivity
- * does for swipe-between-posts, and kept in the same [ViewPostDetailActivityViewModel] so paging
- * past the feed's snapshot reuses its load-more code. Because the handoff is a shallow copy, the
- * pages share Post objects with the feed: a vote here changes the feed's row as soon as it is told
- * to repaint.
- */
-class ShadowboxActivity : BaseActivity() {
+/** A fullscreen post pager that owns its feed request and shows one post per page. */
+class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
 
     @Inject
     @Named("no_oauth")
@@ -106,6 +101,11 @@ class ShadowboxActivity : BaseActivity() {
 
     private lateinit var binding: ActivityShadowboxBinding
     private var adapter: ShadowboxPagerAdapter? = null
+    var feedGeneration = 0L
+        private set
+    private var lastHandledBatchId = Long.MIN_VALUE
+    private val excludedSoundOnlyPostIds = mutableSetOf<String>()
+    private var restorePostFullName: String? = null
 
     /** Index of the page the pager is on; only that page plays media. */
     val currentPage = MutableLiveData<Int>()
@@ -113,17 +113,10 @@ class ShadowboxActivity : BaseActivity() {
     /** Whether the info panel (and the system bars) are shown; pages fade their panel on it. */
     val panelVisible = MutableLiveData(true)
 
-    var feedFragmentId = 0L
-        private set
     var isNsfwSubreddit = false
         private set
-    @PostType
-    var postType = PostType.FRONT_PAGE
+    var isTikTokWithSound = false
         private set
-
-    private var launchPosition = 0
-    private var pagerScrollState = ViewPager2.SCROLL_STATE_IDLE
-    private var swipedAway = false
     private var chromeVisible = true
     private var markPostsAsRead = false
     /** Sound level chosen during this Shadowbox session, shared by its video pages. */
@@ -131,30 +124,11 @@ class ShadowboxActivity : BaseActivity() {
     var lastAudibleVolume = 1f
     private var hideTextAndPreviewlessPosts = false
 
-    /** Consecutive fetched pages that this mode's filter emptied, so one run cannot go on forever. */
-    private var barrenFetches = 0
-
-    /** How many posts the pages were last built from, so a re-delivered state is recognised. */
-    private var builtPostCount = 0
-
-    // The feed's listing parameters, copied from the handoff so load-more asks for the same list.
-    private var subredditName: String? = null
-    private var concatenatedSubredditNames: String? = null
-    private var username: String? = null
-    private var userWhere: String? = null
-    private var multiPath: String? = null
-    private var query: String? = null
-    private var sortType: SortType.Type? = null
-    private var sortTime: SortType.Time? = null
-    private var postFilter: PostFilter? = null
-    @ReadPostType
-    private var readPostType = ReadPostType.INVALID
-    private var readPostsList: ReadPostsListInterface? = null
-    private var mediaOnly = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
         (application as Infinity).appComponent.inject(this)
-        super.onCreate(savedInstanceState)
+        // The pager's saved FragmentStateAdapter IDs refer to its old post-index fragments. The
+        // feed ViewModel and the selected post are restored separately below.
+        super.onCreate(null)
 
         setUpWindow()
 
@@ -164,8 +138,12 @@ class ShadowboxActivity : BaseActivity() {
         )
 
         binding = ActivityShadowboxBinding.inflate(layoutInflater)
+        binding.viewPager2ShadowboxActivity.isSaveEnabled = false
+        binding.viewPager2ShadowboxActivity.isSaveFromParentEnabled = false
         setContentView(binding.root)
         binding.closeShadowbox.setOnClickListener { finish() }
+        binding.sortShadowbox.setOnClickListener { showSortTypeBottomSheet() }
+        binding.sortShadowbox.isEnabled = false
         volumeControlStream = AudioManager.STREAM_MUSIC
 
         markPostsAsRead = postHistorySharedPreferences.getBoolean(
@@ -175,9 +153,25 @@ class ShadowboxActivity : BaseActivity() {
             SharedPreferencesUtils.SHADOWBOX_HIDE_TEXT_AND_PREVIEWLESS_POSTS, false
         )
 
-        feedFragmentId = intent.getLongExtra(EXTRA_POST_FRAGMENT_ID, 0L)
-        launchPosition = intent.getIntExtra(EXTRA_POST_LIST_POSITION, 0)
         isNsfwSubreddit = intent.getBooleanExtra(EXTRA_IS_NSFW_SUBREDDIT, false)
+        isTikTokWithSound = intent.getBooleanExtra(EXTRA_TIKTOK_WITH_SOUND, false)
+        savedInstanceState?.getStringArrayList(STATE_EXCLUDED_SOUND_ONLY_POST_IDS)
+            ?.let(excludedSoundOnlyPostIds::addAll)
+        restorePostFullName = savedInstanceState?.getString(STATE_CURRENT_POST_FULL_NAME)
+        savedInstanceState?.let { state ->
+            if (state.containsKey(STATE_PLAYBACK_VOLUME)) playbackVolume = state.getFloat(STATE_PLAYBACK_VOLUME)
+            if (state.containsKey(STATE_LAST_AUDIBLE_VOLUME)) lastAudibleVolume = state.getFloat(STATE_LAST_AUDIBLE_VOLUME)
+            if (state.containsKey(STATE_PANEL_VISIBLE)) {
+                chromeVisible = state.getBoolean(STATE_PANEL_VISIBLE)
+                panelVisible.value = chromeVisible
+            }
+        }
+        val systemBarsController = WindowCompat.getInsetsController(window, window.decorView)
+        if (chromeVisible) {
+            systemBarsController.show(WindowInsetsCompat.Type.systemBars())
+        } else {
+            systemBarsController.hide(WindowInsetsCompat.Type.systemBars())
+        }
 
         viewModel = ViewModelProvider(
             this,
@@ -193,6 +187,10 @@ class ShadowboxActivity : BaseActivity() {
                 topMargin = bars.top + (8 * resources.displayMetrics.density).toInt()
                 leftMargin = bars.left + (8 * resources.displayMetrics.density).toInt()
             }
+            binding.sortShadowbox.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                topMargin = bars.top + (8 * resources.displayMetrics.density).toInt()
+                rightMargin = bars.right + (8 * resources.displayMetrics.density).toInt()
+            }
             // Ignoring visibility keeps the panel's padding the same whether the bars are shown or
             // hidden, so toggling the chrome never moves it.
             insetsViewModel.setInsets(
@@ -205,17 +203,26 @@ class ShadowboxActivity : BaseActivity() {
 
         EventBus.getDefault().register(this)
 
-        if (feedFragmentId > 0) {
-            // Answered synchronously by the feed fragment underneath, if it is still there. Asked
-            // even when the model already has the posts: a configuration change this activity does
-            // not declare -- a dark-mode switch, a font-scale change -- rebuilds it around the
-            // surviving model, and the listing parameters below live on the activity, so without
-            // this they would be back at their defaults and every later fetch would give up.
-            EventBus.getDefault().post(NeedForPostListFromPostFragmentEvent(feedFragmentId))
+        val hasExistingFeed = viewModel.currentFeedRequest != null
+        val intentFeedRequest = feedRequestFromIntent()?.let { request ->
+            if (savedInstanceState?.getBoolean(STATE_HAS_SORT_STATE) != true) {
+                request
+            } else {
+                val restoredSortType = savedInstanceState.getString(STATE_SORT_TYPE)
+                    ?.let { name -> SortType.Type.values().firstOrNull { it.name == name } }
+                    ?: request.sortType
+                val restoredSortTime = savedInstanceState.getString(STATE_SORT_TIME)
+                    ?.let { name -> SortType.Time.values().firstOrNull { it.name == name } }
+                request.copy(sortType = restoredSortType, sortTime = restoredSortTime)
+            }
         }
-
-        val posts = viewModel.posts
-        if (posts.isNullOrEmpty()) {
+        if (hasExistingFeed) {
+            // A recreated activity keeps its independent request and already loaded list.
+            feedGeneration = 1L
+            lastHandledBatchId = viewModel.loadMorePostsState.value?.batchId ?: Long.MIN_VALUE
+        } else if (intentFeedRequest != null) {
+            startFeedWithProfileFilter(intentFeedRequest)
+        } else {
             Toast.makeText(this, R.string.shadowbox_no_posts, Toast.LENGTH_SHORT).show()
             finish()
             return
@@ -223,14 +230,6 @@ class ShadowboxActivity : BaseActivity() {
 
         val adapter = ShadowboxPagerAdapter(this, viewModel, ::shouldBlur, ::shouldShowPost)
         adapter.buildPages()
-        builtPostCount = posts.size
-        if (adapter.pageCount == 0) {
-            // Every post the feed handed over was filtered out by the hide-text-and-previewless
-            // setting.
-            Toast.makeText(this, R.string.shadowbox_no_posts, Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
         this.adapter = adapter
         // Vertical gestures navigate posts here. Keep this screen free of the media viewers'
         // swipe-to-dismiss wrapper, regardless of the global vertical-dismiss preference.
@@ -246,17 +245,17 @@ class ShadowboxActivity : BaseActivity() {
         // evicts. The cost is that a video page either side prepares its player, the same trade
         // the feed makes for autoplay.
         binding.viewPager2ShadowboxActivity.offscreenPageLimit = 1
-        launchPosition = launchPosition.coerceIn(0, posts.size - 1)
-        val launchPage = adapter.pageForPostIndex(launchPosition)
-        // The post the feed was on may itself be filtered out; the page the pager opens on is the
-        // first one kept at or after it, and that is the post to measure a swipe against.
-        launchPosition = adapter.postIndexForPage(launchPage)
+        val posts = viewModel.posts
+        val restoredPostIndex = if (hasExistingFeed && restorePostFullName != null) {
+            posts?.indexOfFirst { it.fullName == restorePostFullName } ?: -1
+        } else {
+            -1
+        }
+        if (restoredPostIndex >= 0) restorePostFullName = null
+        val launchPostIndex = restoredPostIndex.takeIf { it >= 0 } ?: 0
+        val launchPage = if (posts.isNullOrEmpty()) 0 else adapter.pageForPostIndex(launchPostIndex)
         binding.viewPager2ShadowboxActivity.setCurrentItem(launchPage, false)
         binding.viewPager2ShadowboxActivity.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-            override fun onPageScrollStateChanged(state: Int) {
-                pagerScrollState = state
-            }
-
             override fun onPageSelected(position: Int) {
                 onPageShown(position)
             }
@@ -265,7 +264,10 @@ class ShadowboxActivity : BaseActivity() {
         // it, so the launch page gets its side effects by hand.
         onPageShown(launchPage)
 
-        viewModel.loadMorePostsState.observe(this) { state -> onLoadMoreState(state) }
+        viewModel.loadMorePostsState.observe(this) { state ->
+            binding.sortShadowbox.isEnabled = viewModel.currentFeedRequest != null
+            onLoadMoreState(state)
+        }
     }
 
     private fun setUpWindow() {
@@ -290,15 +292,14 @@ class ShadowboxActivity : BaseActivity() {
         val adapter = this.adapter ?: return
         val postIndex = adapter.postIndexForPage(page)
         currentPage.value = postIndex
-        val posts = viewModel.posts ?: return
-        if (page > adapter.pageCount - LOAD_MORE_THRESHOLD) {
+        if (adapter.pageCount - page <= PREFETCH_LEAD_PAGES) {
             fetchMorePosts()
         }
         stopPlaybackExcept(postIndex)
+        val posts = viewModel.posts ?: return
         if (postIndex in posts.indices) {
             markPostRead(posts[postIndex], postIndex)
         }
-        notifyFeedOfCurrentPost(posts, postIndex)
     }
 
     /**
@@ -314,54 +315,151 @@ class ShadowboxActivity : BaseActivity() {
         }
     }
 
-    /** Asks for the next page of the feed's listing; the model ignores the call while one is in flight or the list is done. */
-    fun fetchMorePosts() {
-        viewModel.fetchMorePosts(
-            accessToken, accountName, false, postType,
-            subredditName, concatenatedSubredditNames, username,
-            userWhere, multiPath, query, sortType, sortTime, postFilter,
-            readPostType, readPostsList, mediaOnly
+    /** Rebuilds the standalone feed request from the small source descriptor in the Intent. */
+    private fun feedRequestFromIntent(): PostFeedRequest? {
+        if (!intent.hasExtra(EXTRA_FEED_POST_TYPE)) return null
+        val postType = intent.getIntExtra(EXTRA_FEED_POST_TYPE, PostType.FRONT_PAGE)
+        val sortType = intent.getStringExtra(EXTRA_FEED_SORT_TYPE)
+            ?.let { name -> SortType.Type.values().firstOrNull { it.name == name } }
+            ?: SortType.Type.HOT
+        val sortTime = intent.getStringExtra(EXTRA_FEED_SORT_TIME)
+            ?.let { name -> SortType.Time.values().firstOrNull { it.name == name } }
+        return PostFeedRequest(
+            postType = postType,
+            accountName = accountName,
+            accessToken = accessToken,
+            subredditName = intent.getStringExtra(EXTRA_FEED_SUBREDDIT_NAME),
+            concatenatedSubredditNames = if (
+                postType == PostType.ANONYMOUS_FRONT_PAGE || postType == PostType.ANONYMOUS_MULTIREDDIT
+            ) null else intent.getStringExtra(EXTRA_FEED_CONCATENATED_SUBREDDIT_NAMES),
+            username = intent.getStringExtra(EXTRA_FEED_USERNAME),
+            userWhere = intent.getStringExtra(EXTRA_FEED_USER_WHERE),
+            multiPath = intent.getStringExtra(EXTRA_FEED_MULTI_PATH),
+            query = intent.getStringExtra(EXTRA_FEED_QUERY),
+            sortType = sortType,
+            sortTime = sortTime,
+            readPostType = intent.getIntExtra(EXTRA_FEED_READ_POST_TYPE, ReadPostType.READ_POSTS),
+            readPostsList = ReadPostsList(
+                redditDataRoomDatabase.readPostDao(),
+                accountName,
+                intent.getBooleanExtra(EXTRA_FEED_DISABLE_READ_POSTS, false),
+            ),
+            mediaOnly = isTikTokWithSound || intent.getBooleanExtra(EXTRA_FEED_MEDIA_ONLY, false),
         )
     }
+
+    private fun showSortTypeBottomSheet() {
+        val request = viewModel.currentFeedRequest ?: return
+        val selectedSort = SortType(request.sortType, request.sortTime)
+        val sortSheet = SortTypeBottomSheetFragment.getNewInstance(
+            request.postType != PostType.FRONT_PAGE,
+            selectedSort,
+        )
+        sortSheet.show(supportFragmentManager, sortSheet.tag)
+    }
+
+    override fun sortTypeSelected(sortType: SortType) {
+        val request = viewModel.currentFeedRequest ?: return
+        intent.putExtra(EXTRA_FEED_SORT_TYPE, sortType.type.name)
+        val selectedSortTime = sortType.time
+        if (selectedSortTime != null) {
+            intent.putExtra(EXTRA_FEED_SORT_TIME, selectedSortTime.name)
+        } else {
+            intent.removeExtra(EXTRA_FEED_SORT_TIME)
+        }
+        val updatedRequest = request.copy(sortType = sortType.type, sortTime = sortType.time)
+        startFeedWithProfileFilter(updatedRequest)
+        adapter?.let { pagerAdapter ->
+            pagerAdapter.buildPages()
+            pagerAdapter.notifyDataSetChanged()
+            binding.viewPager2ShadowboxActivity.setCurrentItem(0, false)
+            onPageShown(0)
+        }
+    }
+
+    override fun sortTypeSelected(sortType: String) {
+        val timeSheet = SortTimeBottomSheetFragment().apply {
+            arguments = Bundle().apply {
+                putString(SortTimeBottomSheetFragment.EXTRA_SORT_TYPE, sortType)
+            }
+        }
+        timeSheet.show(supportFragmentManager, timeSheet.tag)
+    }
+
+    private fun startFeedWithProfileFilter(request: PostFeedRequest) {
+        val generation = ++feedGeneration
+        lastHandledBatchId = Long.MIN_VALUE
+
+        val allowNSFW = nsfwAndSpoilerSharedPreferences.getBoolean(
+            AccountScope.key(accountName, SharedPreferencesUtils.NSFW_BASE), false
+        )
+        request.postFilter?.let {
+            it.allowNSFW = allowNSFW
+            viewModel.startFeed(request)
+            return
+        }
+
+        val (usage, name) = postFilterUsage(request)
+        FetchPostFilterAndConcatenatedSubredditNames.fetchPostFilter(
+            redditDataRoomDatabase,
+            executor,
+            Handler(Looper.getMainLooper()),
+            usage,
+            name,
+        ) { postFilter ->
+            if (isFinishing || isDestroyed || generation != feedGeneration) return@fetchPostFilter
+            postFilter.allowNSFW = allowNSFW
+            viewModel.startFeed(request.copy(postFilter = postFilter))
+        }
+    }
+
+    private fun postFilterUsage(request: PostFeedRequest): Pair<Int, String?> = when (request.postType) {
+        PostType.SUBREDDIT -> PostFilterUsage.SUBREDDIT_TYPE to request.subredditName
+        PostType.USER -> PostFilterUsage.USER_TYPE to request.username
+        PostType.SEARCH -> PostFilterUsage.SEARCH_TYPE to PostFilterUsage.NO_USAGE
+        PostType.MULTIREDDIT, PostType.ANONYMOUS_MULTIREDDIT ->
+            PostFilterUsage.MULTIREDDIT_TYPE to request.multiPath
+        else -> PostFilterUsage.HOME_TYPE to PostFilterUsage.NO_USAGE
+    }
+
+    fun fetchMorePosts() {
+        if (isFinishing || isDestroyed || viewModel.currentFeedRequest == null) return
+        val state = viewModel.loadMorePostsState.value ?: return
+        if (state.status == LoadingMorePostsStatus.LOADING || !state.hasMore) return
+        viewModel.loadNextFeedPage()
+    }
+
+    fun isSoundOnlyFeedEmpty(): Boolean = isTikTokWithSound && (adapter?.pageCount == 0)
 
     private fun onLoadMoreState(state: ViewPostDetailActivityViewModel.LoadMorePostsState) {
         if (isFinishing || isDestroyed || state.status != LoadingMorePostsStatus.LOADED) {
             return
         }
+        if (state.batchId == lastHandledBatchId) return
+        val generation = feedGeneration
         val recyclerView = binding.viewPager2ShadowboxActivity.getChildAt(0) as RecyclerView
         if (recyclerView.isComputingLayout) {
-            recyclerView.post { onLoadMoreState(state) }
-            return
-        }
-        val adapter = this.adapter ?: return
-        // The state is a StateFlow behind a LiveData, so leaving this screen and coming back to it
-        // re-delivers whatever it last held. Nothing was appended in between, and treating that as
-        // a fetch this mode emptied would both spend a barren attempt and go asking for a page the
-        // user never swiped towards.
-        val postCount = viewModel.posts?.size ?: 0
-        if (postCount == builtPostCount) {
-            return
-        }
-        builtPostCount = postCount
-        // Read the page the user is on before the footer is replaced, and take the
-        // count from the adapter rather than from the event: while this screen is stopped the
-        // model can append more than once and LiveData delivers only the last of those.
-        val oldPageCount = adapter.pageCount
-        val wasOnEndPage = binding.viewPager2ShadowboxActivity.currentItem == oldPageCount
-        val added = adapter.appendPages()
-        if (added == 0) {
-            // The whole fetched page was filtered out. Keep asking, bounded, or the user is left
-            // on the end page with posts loaded behind it.
-            if (++barrenFetches < MAX_BARREN_FETCHES) {
-                fetchMorePosts()
+            recyclerView.post {
+                if (generation == feedGeneration) onLoadMoreState(state)
             }
             return
         }
-        barrenFetches = 0
+        val adapter = this.adapter ?: return
+        lastHandledBatchId = state.batchId
+        val oldPageCount = adapter.pageCount
+        val wasOnEndPage = binding.viewPager2ShadowboxActivity.currentItem >= oldPageCount
+        val added = adapter.appendPages()
+        if (restoreSelectedPostIfAvailable(state, adapter)) return
+        if (added == 0) {
+            // Filters can consume any number of complete batches. Only the loader's exhaustion
+            // signal ends the search for visible pages, and fetchMorePosts keeps this one-at-a-time.
+            if (state.hasMore) fetchMorePosts()
+            return
+        }
         if (wasOnEndPage) {
             // Parked on the end page while it loaded: show the first post that arrived.
             binding.viewPager2ShadowboxActivity.post {
-                if (!isFinishing && !isDestroyed) {
+                if (!isFinishing && !isDestroyed && generation == feedGeneration) {
                     binding.viewPager2ShadowboxActivity.setCurrentItem(oldPageCount, false)
                     // Replacing the footer can keep the same numeric position and therefore
                     // emit no onPageSelected callback. Activate the arriving post explicitly.
@@ -371,13 +469,135 @@ class ShadowboxActivity : BaseActivity() {
         }
     }
 
+    private fun restoreSelectedPostIfAvailable(
+        state: ViewPostDetailActivityViewModel.LoadMorePostsState,
+        adapter: ShadowboxPagerAdapter,
+    ): Boolean {
+        val fullName = restorePostFullName ?: return false
+        val posts = viewModel.posts ?: return false
+        val postIndex = posts.indexOfFirst { it.fullName == fullName }
+        if (postIndex < 0) {
+            if (state.hasMore) {
+                movePagerToPageWhenReady(adapter.pageCount)
+                return true
+            }
+            restorePostFullName = null
+            movePagerToPageWhenReady(0)
+            return true
+        }
+
+        val page = firstPageAtOrAfterPostIndex(postIndex)
+        if (page >= adapter.pageCount && state.hasMore) {
+            movePagerToPageWhenReady(adapter.pageCount)
+            return true
+        }
+        restorePostFullName = null
+        movePagerToPageWhenReady(page)
+        return true
+    }
+
+    private fun movePagerToPageWhenReady(page: Int) {
+        val moveToPage = object : Runnable {
+            override fun run() {
+                if (isFinishing || isDestroyed) return
+                val pager = binding.viewPager2ShadowboxActivity
+                val recyclerView = pager.getChildAt(0) as? RecyclerView
+                if (recyclerView?.isComputingLayout == true) {
+                    recyclerView.post(this)
+                    return
+                }
+                val target = page.coerceAtMost(adapter?.pageCount ?: 0)
+                pager.setCurrentItem(target, false)
+                onPageShown(target)
+            }
+        }
+        binding.viewPager2ShadowboxActivity.post(moveToPage)
+    }
+
     /**
      * Whether this mode shows the post at all: everything, unless "hide text posts and posts with
      * no preview" is on, in which case a post has to be something other than a text post and have
      * a preview image.
      */
-    private fun shouldShowPost(post: Post): Boolean =
-        !hideTextAndPreviewlessPosts || ShadowboxPreviews.hasPreviewToShow(post)
+    private fun shouldShowPost(post: Post): Boolean {
+        if (isTikTokWithSound) {
+            return isPlayableClipCandidate(post) && post.fullName !in excludedSoundOnlyPostIds
+        }
+        return !hideTextAndPreviewlessPosts || ShadowboxPreviews.hasPreviewToShow(post)
+    }
+
+    private fun isPlayableClipCandidate(post: Post): Boolean = when (post.postType) {
+        Post.VIDEO_TYPE -> post.videoUrl != null &&
+            (!(post.isStreamable || post.isShortClip) || post.isLoadedStreamableVideoAlready)
+        Post.GIF_TYPE -> post.mp4Variant != null
+        else -> false
+    }
+
+    /** Called only after Media3 reports a ready, supported track set for this exact post. */
+    fun onSoundOnlyAudioAvailability(post: Post, hasPlayableAudio: Boolean, sourceGeneration: Long) {
+        if (!isTikTokWithSound || isFinishing || isDestroyed ||
+            sourceGeneration != feedGeneration || hasPlayableAudio
+        ) return
+        excludeSoundOnlyPost(post, sourceGeneration)
+    }
+
+    /** A confirmed playback failure after all known URL fallbacks cannot play in this feed. */
+    fun onSoundOnlyPostUnplayable(post: Post, sourceGeneration: Long) {
+        if (!isTikTokWithSound || isFinishing || isDestroyed || sourceGeneration != feedGeneration) return
+        excludeSoundOnlyPost(post, sourceGeneration)
+    }
+
+    private fun excludeSoundOnlyPost(post: Post, sourceGeneration: Long) {
+        val posts = viewModel.posts ?: return
+        val excludedPostIndex = posts.indexOfFirst { it.fullName == post.fullName }
+        if (excludedPostIndex < 0 || !excludedSoundOnlyPostIds.add(post.fullName)) return
+
+        val applyExclusion = object : Runnable {
+            override fun run() {
+                if (isFinishing || isDestroyed || sourceGeneration != feedGeneration) return
+                val recyclerView = binding.viewPager2ShadowboxActivity.getChildAt(0) as? RecyclerView
+                if (recyclerView?.isComputingLayout == true) {
+                    recyclerView.post(this)
+                    return
+                }
+                val currentAdapter = adapter ?: return
+                val currentPostIndex = currentAdapter.postIndexForPage(
+                    binding.viewPager2ShadowboxActivity.currentItem
+                )
+                currentAdapter.buildPages()
+                currentAdapter.notifyDataSetChanged()
+
+                val targetPage = when {
+                    currentPostIndex < 0 -> currentAdapter.pageCount
+                    currentPostIndex == excludedPostIndex -> firstPageAtOrAfterPostIndex(excludedPostIndex + 1)
+                    else -> firstPageAtOrAfterPostIndex(currentPostIndex)
+                }
+                val moveToTarget = object : Runnable {
+                    override fun run() {
+                        if (isFinishing || isDestroyed || sourceGeneration != feedGeneration) return
+                        val pagerRecyclerView = binding.viewPager2ShadowboxActivity.getChildAt(0) as? RecyclerView
+                        if (pagerRecyclerView?.isComputingLayout == true) {
+                            pagerRecyclerView.post(this)
+                            return
+                        }
+                        if (adapter !== currentAdapter) return
+                        binding.viewPager2ShadowboxActivity.setCurrentItem(targetPage, false)
+                        onPageShown(targetPage)
+                    }
+                }
+                binding.viewPager2ShadowboxActivity.post(moveToTarget)
+            }
+        }
+        applyExclusion.run()
+    }
+
+    private fun firstPageAtOrAfterPostIndex(postIndex: Int): Int {
+        val adapter = this.adapter ?: return 0
+        for (page in 0 until adapter.pageCount) {
+            if (adapter.postIndexForPage(page) >= postIndex) return page
+        }
+        return adapter.pageCount
+    }
 
     /**
      * Marks the post read the way opening it from the feed would, under the same "mark posts as
@@ -405,32 +625,6 @@ class ShadowboxActivity : BaseActivity() {
             ReadPostsUtils.GetReadPostsLimit(accountName, postHistorySharedPreferences)
         )
         EventBus.getDefault().post(PostUpdateEventToPostList(post, position))
-    }
-
-    /**
-     * Keeps the feed in step with the pager, so backing out lands on the post being looked at.
-     * Ported from ViewPostDetailActivity.notifyPostListOfCurrentPost, guards included: nothing is
-     * reported until the pager has actually left the launch page, and never for an idle-state
-     * callback, which is a layout or data-set change substituting a page rather than a swipe.
-     */
-    private fun notifyFeedOfCurrentPost(posts: List<Post>, position: Int) {
-        if (feedFragmentId <= 0 || posts.isEmpty() || position < 0) {
-            return
-        }
-        if (pagerScrollState == ViewPager2.SCROLL_STATE_IDLE) {
-            return
-        }
-        val postPosition = minOf(position, posts.size - 1)
-        if (postPosition != launchPosition) {
-            swipedAway = true
-        }
-        if (!swipedAway) {
-            return
-        }
-        val post = posts[postPosition]
-        EventBus.getDefault().postSticky(
-            PostPositionUpdateEventToPostList(feedFragmentId, postPosition, post.fullName)
-        )
     }
 
     private fun shouldBlur(post: Post): Boolean {
@@ -467,34 +661,6 @@ class ShadowboxActivity : BaseActivity() {
             }
         }
         return null
-    }
-
-    @Subscribe
-    fun onProvidePostListEvent(event: ProvidePostListToViewPostDetailActivityEvent) {
-        if (event.postFragmentId != feedFragmentId) {
-            return
-        }
-        // The list is taken only once: the model's own may already have grown past the feed's
-        // snapshot, and replacing it would throw those posts away. The listing parameters are
-        // taken every time, because they are the activity's and a recreated one has none.
-        if (viewModel.posts == null) {
-            viewModel.posts = event.posts
-        }
-        postType = event.postType
-        subredditName = event.subredditName
-        concatenatedSubredditNames = event.concatenatedSubredditNames
-        username = event.username
-        userWhere = event.userWhere
-        multiPath = event.multiPath
-        query = event.query
-        readPostType = event.readPostType
-        postFilter = event.postFilter
-        mediaOnly = event.mediaOnly
-        event.sortType?.let {
-            sortType = it.type
-            sortTime = it.time
-        }
-        readPostsList = event.readPostsList
     }
 
     /**
@@ -554,8 +720,28 @@ class ShadowboxActivity : BaseActivity() {
     }
 
     override fun onDestroy() {
+        if (isFinishing && ::viewModel.isInitialized) {
+            viewModel.stopFeedLoading()
+        }
         EventBus.getDefault().unregister(this)
         super.onDestroy()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putStringArrayList(STATE_EXCLUDED_SOUND_ONLY_POST_IDS, ArrayList(excludedSoundOnlyPostIds))
+        val selectedPostIndex = adapter?.postIndexForPage(binding.viewPager2ShadowboxActivity.currentItem) ?: -1
+        viewModel.posts?.getOrNull(selectedPostIndex)?.fullName?.let {
+            outState.putString(STATE_CURRENT_POST_FULL_NAME, it)
+        }
+        playbackVolume?.let { outState.putFloat(STATE_PLAYBACK_VOLUME, it) }
+        outState.putFloat(STATE_LAST_AUDIBLE_VOLUME, lastAudibleVolume)
+        outState.putBoolean(STATE_PANEL_VISIBLE, panelVisible.value != false)
+        viewModel.currentFeedRequest?.let { request ->
+            outState.putBoolean(STATE_HAS_SORT_STATE, true)
+            outState.putString(STATE_SORT_TYPE, request.sortType.name)
+            request.sortTime?.let { outState.putString(STATE_SORT_TIME, it.name) }
+        }
     }
 
     override fun getDefaultSharedPreferences(): SharedPreferences = sharedPreferences
@@ -569,14 +755,28 @@ class ShadowboxActivity : BaseActivity() {
     }
 
     companion object {
-        const val EXTRA_POST_FRAGMENT_ID = "EPFI"
-        const val EXTRA_POST_LIST_POSITION = "EPLP"
         const val EXTRA_IS_NSFW_SUBREDDIT = "EINS"
-
-        /** How close to the end of the list a page has to be before the next page is requested. */
-        private const val LOAD_MORE_THRESHOLD = 5
-
-        /** How many fetches this mode's filter may empty before it stops asking for more. */
-        private const val MAX_BARREN_FETCHES = 5
+        const val EXTRA_TIKTOK_WITH_SOUND = "ETS"
+        const val EXTRA_FEED_POST_TYPE = "EFPT"
+        const val EXTRA_FEED_SUBREDDIT_NAME = "EFSN"
+        const val EXTRA_FEED_MULTI_PATH = "EFMP"
+        const val EXTRA_FEED_CONCATENATED_SUBREDDIT_NAMES = "EFCSN"
+        const val EXTRA_FEED_USERNAME = "EFUN"
+        const val EXTRA_FEED_USER_WHERE = "EFUW"
+        const val EXTRA_FEED_QUERY = "EFQ"
+        const val EXTRA_FEED_SORT_TYPE = "EFST"
+        const val EXTRA_FEED_SORT_TIME = "EFSTM"
+        const val EXTRA_FEED_READ_POST_TYPE = "EFRPT"
+        const val EXTRA_FEED_MEDIA_ONLY = "EFMO"
+        const val EXTRA_FEED_DISABLE_READ_POSTS = "EFDRP"
+        private const val STATE_EXCLUDED_SOUND_ONLY_POST_IDS = "ESSOPI"
+        private const val STATE_CURRENT_POST_FULL_NAME = "SCPFN"
+        private const val STATE_PLAYBACK_VOLUME = "SPV"
+        private const val STATE_LAST_AUDIBLE_VOLUME = "SLAV"
+        private const val STATE_PANEL_VISIBLE = "SPVSB"
+        private const val STATE_HAS_SORT_STATE = "SHSS"
+        private const val STATE_SORT_TYPE = "SST"
+        private const val STATE_SORT_TIME = "SSTM"
+        private const val PREFETCH_LEAD_PAGES = 15
     }
 }

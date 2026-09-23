@@ -108,7 +108,8 @@ class ShadowboxPagerAdapter(
             return itemId == endPageId
         }
         val post = postsById[itemId] ?: return false
-        return posts().any { it === post }
+        val currentPosts = posts()
+        return pages.any { postIndex -> currentPosts.getOrNull(postIndex) === post }
     }
 
     override fun createFragment(position: Int): Fragment {

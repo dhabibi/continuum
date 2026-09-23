@@ -21,4 +21,16 @@
         android:src="@drawable/ic_close_24dp"
         android:tint="@android:color/white"
         android:contentDescription="@string/shadowbox_close" />
+
+    <ImageButton
+        android:id="@+id/sort_shadowbox"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:padding="12dp"
+        android:background="@drawable/exo_player_control_button_circular_background"
+        android:src="@drawable/ic_sort_toolbar_24dp"
+        android:tint="@android:color/white"
+        android:contentDescription="@string/tiktok_change_sort" />
 </FrameLayout>

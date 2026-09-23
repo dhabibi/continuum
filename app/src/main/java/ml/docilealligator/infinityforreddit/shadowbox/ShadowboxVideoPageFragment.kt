@@ -4,7 +4,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.util.Log
+import android.view.GestureDetector
 import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
+import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -94,6 +98,16 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     private var isMute = false
     private var volume = 1f
     private var scrubbing = false
+    private var audioAvailabilityReported = false
+    private var soundOnlyPlaybackApproved = false
+    private var feedGenerationAtCreation = 0L
+    private var videoTextureView: TextureView? = null
+    private var videoZoomScale = 1f
+    private var videoPanX = 0f
+    private var videoPanY = 0f
+    private var lastVideoTouchX = Float.NaN
+    private var lastVideoTouchY = Float.NaN
+    private var videoGestureHadMultiplePointers = false
     private var systemInsets = Insets.NONE
     private val updateProgress = object : Runnable {
         override fun run() {
@@ -133,6 +147,11 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         super.onCreate(savedInstanceState)
         uri = Uri.parse(requireArguments().getString(ARG_URI) ?: "")
         isGifMp4 = requireArguments().getBoolean(ARG_IS_GIF_MP4, false)
+        feedGenerationAtCreation = host.feedGeneration
+        if (host.playbackVolume == null) {
+            volume = if (initialSessionMuteState()) 0f else 1f
+            isMute = volume == 0f
+        }
     }
 
     override fun onCreateMediaView(inflater: LayoutInflater, container: ViewGroup) {
@@ -141,6 +160,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         attachControls(binding.playbackControlsShadowbox, container.parent as ViewGroup)
         binding.playerViewShadowboxMediaVideo.setOnClickListener { togglePlayback() }
         binding.playerViewShadowboxMediaVideo.setOnLongClickListener { toggleChrome(); true }
+        installVideoSurfaceZoom(binding)
         binding.progressBarShadowboxMediaVideo.visibility = View.INVISIBLE
         binding.playButtonShadowboxMediaVideo.setOnClickListener { togglePlayback() }
         binding.playbackErrorLinearLayoutShadowboxMediaVideo.setOnClickListener { retryPlayback() }
@@ -188,8 +208,17 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
 
     override fun loadMedia() {
         showPoster()
-        isMute = initialMuteState()
-        volume = if (isMute) 0f else 1f
+        val sessionVolume = host.playbackVolume
+        val perPostMute = !host.isTikTokWithSound && post.isNSFW &&
+            sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_NSFW_VIDEO, false)
+        volume = when {
+            host.isTikTokWithSound -> sessionVolume ?: 1f
+            perPostMute -> 0f
+            sessionVolume != null -> sessionVolume
+            initialMuteState() -> 0f
+            else -> 1f
+        }
+        isMute = volume == 0f
         buildPlayer()
     }
 
@@ -209,6 +238,8 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         appliedDefaultResolution = false
         appliedStereoAudioTrack = false
         firstFrameRendered = false
+        audioAvailabilityReported = false
+        soundOnlyPlaybackApproved = !host.isTikTokWithSound
         val trackSelector = DefaultTrackSelector(host)
         this.trackSelector = trackSelector
         val player = ExoPlayer.Builder(host)
@@ -242,15 +273,16 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
                 val binding = _binding ?: return
                 binding.progressBarShadowboxMediaVideo.visibility =
                     if (playbackState == Player.STATE_BUFFERING) View.VISIBLE else View.INVISIBLE
+                if (playbackState == Player.STATE_READY) {
+                    reportSoundOnlyAudioAvailability(player)
+                }
                 updateTimeline()
             }
 
             override fun onTracksChanged(tracks: Tracks) {
                 applyDefaultResolution(tracks)
                 applyStereoAudioTrack(tracks)
-                val hasAudio = tracks.groups.any { group ->
-                    group.length > 0 && group.getTrackFormat(0).sampleMimeType?.contains("audio") == true
-                }
+                val hasAudio = hasSupportedTrack(tracks, C.TRACK_TYPE_AUDIO)
                 if (hasAudio) {
                     panel?.showMuteControl(isMute, ::toggleMute) {
                         _binding?.volumeRowShadowbox?.let {
@@ -261,6 +293,9 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
                 } else {
                     _binding?.volumeRowShadowbox?.visibility = View.GONE
                     panel?.hideMuteControl()
+                }
+                if (player.playbackState == Player.STATE_READY) {
+                    reportSoundOnlyAudioAvailability(player)
                 }
             }
 
@@ -294,7 +329,11 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
                 // too, say so -- a page left on its poster with a pause button up looked like a
                 // video that was playing.
                 if (!retryAtPostedQuality() && !retryAtFallbackUrl()) {
-                    showPlaybackError()
+                    if (host.isTikTokWithSound) {
+                        host.onSoundOnlyPostUnplayable(post, feedGenerationAtCreation)
+                    } else {
+                        showPlaybackError()
+                    }
                 }
             }
         }
@@ -331,6 +370,126 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         if (pageActive) {
             host.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+    }
+
+    /**
+     * Media3 uses a TextureView in this layout so its rendered video can take view transforms.
+     * Only the surface is scaled and panned; the PlayerView click target, captions, and playback
+     * controls keep their normal size and position.
+     */
+    private fun installVideoSurfaceZoom(binding: ShadowboxMediaVideoBinding) {
+        val surface = binding.playerViewShadowboxMediaVideo.videoSurfaceView as? TextureView ?: return
+        val gestureView = binding.videoGestureOverlayShadowboxMediaVideo
+        val playerView = binding.playerViewShadowboxMediaVideo
+        videoTextureView = surface
+        resetVideoSurfaceTransform()
+        gestureView.setOnClickListener { playerView.performClick() }
+        gestureView.setOnLongClickListener { playerView.performLongClick() }
+
+        val tapDetector = GestureDetector(requireContext(), object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(event: MotionEvent): Boolean = true
+
+            override fun onSingleTapConfirmed(event: MotionEvent): Boolean {
+                if (!videoGestureHadMultiplePointers) gestureView.performClick()
+                return true
+            }
+
+            override fun onLongPress(event: MotionEvent) {
+                if (!videoGestureHadMultiplePointers) gestureView.performLongClick()
+            }
+        })
+        val scaleDetector = ScaleGestureDetector(requireContext(), object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                videoGestureHadMultiplePointers = true
+                gestureView.parent?.requestDisallowInterceptTouchEvent(true)
+                return true
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val newScale = (videoZoomScale * detector.scaleFactor).coerceIn(1f, MAX_VIDEO_ZOOM)
+                val scaleFactor = newScale / videoZoomScale
+                val focusX = detector.focusX + gestureView.left - playerView.left - surface.left - surface.width / 2f
+                val focusY = detector.focusY + gestureView.top - playerView.top - surface.top - surface.height / 2f
+                videoPanX = focusX * (1f - scaleFactor) + videoPanX * scaleFactor
+                videoPanY = focusY * (1f - scaleFactor) + videoPanY * scaleFactor
+                videoZoomScale = newScale
+                applyVideoSurfaceTransform(surface)
+                return true
+            }
+        })
+
+        gestureView.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                videoGestureHadMultiplePointers = false
+                lastVideoTouchX = event.x
+                lastVideoTouchY = event.y
+                if (videoZoomScale > 1f) gestureView.parent?.requestDisallowInterceptTouchEvent(true)
+            }
+            if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+                videoGestureHadMultiplePointers = true
+                gestureView.parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            tapDetector.onTouchEvent(event)
+            scaleDetector.onTouchEvent(event)
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_MOVE -> {
+                    if (event.pointerCount == 1 && videoZoomScale > 1f && !scaleDetector.isInProgress) {
+                        if (!lastVideoTouchX.isNaN()) videoPanX += event.x - lastVideoTouchX
+                        if (!lastVideoTouchY.isNaN()) videoPanY += event.y - lastVideoTouchY
+                        applyVideoSurfaceTransform(surface)
+                        gestureView.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    if (event.pointerCount == 1) {
+                        lastVideoTouchX = event.x
+                        lastVideoTouchY = event.y
+                    }
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    val remainingPointer = if (event.actionIndex == 0) 1 else 0
+                    if (remainingPointer < event.pointerCount) {
+                        lastVideoTouchX = event.getX(remainingPointer)
+                        lastVideoTouchY = event.getY(remainingPointer)
+                    }
+                    gestureView.parent?.requestDisallowInterceptTouchEvent(true)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    lastVideoTouchX = Float.NaN
+                    lastVideoTouchY = Float.NaN
+                    gestureView.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+            }
+            true
+        }
+    }
+
+    private fun applyVideoSurfaceTransform(surface: TextureView) {
+        if (surface.width <= 0 || surface.height <= 0) return
+        if (videoZoomScale <= 1f) {
+            videoZoomScale = 1f
+            videoPanX = 0f
+            videoPanY = 0f
+        } else {
+            val maximumX = surface.width * (videoZoomScale - 1f) / 2f
+            val maximumY = surface.height * (videoZoomScale - 1f) / 2f
+            videoPanX = videoPanX.coerceIn(-maximumX, maximumX)
+            videoPanY = videoPanY.coerceIn(-maximumY, maximumY)
+        }
+        surface.scaleX = videoZoomScale
+        surface.scaleY = videoZoomScale
+        surface.translationX = videoPanX
+        surface.translationY = videoPanY
+    }
+
+    private fun resetVideoSurfaceTransform() {
+        videoZoomScale = 1f
+        videoPanX = 0f
+        videoPanY = 0f
+        lastVideoTouchX = Float.NaN
+        lastVideoTouchY = Float.NaN
+        videoGestureHadMultiplePointers = false
+        videoTextureView?.let(::applyVideoSurfaceTransform)
     }
 
     override fun releaseMedia() {
@@ -430,16 +589,18 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     }
 
     /** Explicit mute settings seed the session; its volume controls carry across video pages. */
-    private fun initialMuteState(): Boolean {
+    private fun initialSessionMuteState(): Boolean {
+        if (host.isTikTokWithSound) return false
         if (sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_VIDEO, false)) {
-            return true
-        }
-        if (post.isNSFW && sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_NSFW_VIDEO, false)) {
             return true
         }
         videoMuteManager.getMasterMutingOption()?.let { return it }
         return false
     }
+
+    private fun initialMuteState(): Boolean = initialSessionMuteState() ||
+        (!host.isTikTokWithSound && post.isNSFW &&
+            sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_NSFW_VIDEO, false))
 
     /**
      * Picks the video track "Reddit Video Default Resolution" asks for, ported from
@@ -534,7 +695,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     /** Only the visible page plays. A manual pause remains until the user presses play. */
     private fun applyPlayback() {
         val player = player ?: return
-        player.playWhenReady = pageActive && !userPaused
+        player.playWhenReady = pageActive && !userPaused && soundOnlyPlaybackApproved
         updatePlayButton()
         updateControls()
     }
@@ -577,6 +738,9 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         val player = player ?: return false
         playbackUri = source
         isRedditHls = Util.inferContentType(source) == C.CONTENT_TYPE_HLS
+        audioAvailabilityReported = false
+        soundOnlyPlaybackApproved = !host.isTikTokWithSound
+        applyPlayback()
         player.setMediaSource(buildMediaSource(source))
         player.prepare()
         return true
@@ -647,17 +811,53 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         _binding?.muteShadowbox?.setImageResource(if (isMute) R.drawable.ic_volume_off_32dp else R.drawable.ic_volume_up_32dp)
     }
 
+    private fun reportSoundOnlyAudioAvailability(player: ExoPlayer?) {
+        if (!host.isTikTokWithSound || audioAvailabilityReported) return
+        val readyPlayer = player ?: return
+        if (readyPlayer.playbackState != Player.STATE_READY) return
+        val tracks = readyPlayer.currentTracks
+        audioAvailabilityReported = true
+        if (!hasSupportedTrack(tracks, C.TRACK_TYPE_VIDEO)) {
+            host.onSoundOnlyPostUnplayable(post, feedGenerationAtCreation)
+            return
+        }
+
+        val hasAudioTrack = tracks.groups.any { group ->
+            group.type == C.TRACK_TYPE_AUDIO && group.length > 0
+        }
+        if (!hasSupportedTrack(tracks, C.TRACK_TYPE_AUDIO)) {
+            if (hasAudioTrack) {
+                host.onSoundOnlyPostUnplayable(post, feedGenerationAtCreation)
+            } else {
+                host.onSoundOnlyAudioAvailability(post, false, feedGenerationAtCreation)
+            }
+            return
+        }
+
+        soundOnlyPlaybackApproved = true
+        host.onSoundOnlyAudioAvailability(post, true, feedGenerationAtCreation)
+        applyPlayback()
+    }
+
+    private fun hasSupportedTrack(tracks: Tracks, trackType: Int): Boolean =
+        tracks.groups.any { group ->
+            group.type == trackType && (0 until group.length).any(group::isTrackSupported)
+        }
+
     private fun toggleMute() {
         setVolume(if (volume > 0f) 0f else host.lastAudibleVolume)
     }
 
     override fun onPageActive() {
         pageActive = true
-        if (host.playbackVolume == null) host.playbackVolume = volume
-        volume = if (post.isNSFW && sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_NSFW_VIDEO, false)) {
-            0f
+        if (host.isTikTokWithSound) {
+            volume = host.playbackVolume ?: 1f
         } else {
-            host.playbackVolume ?: volume
+            volume = if (post.isNSFW && sharedPreferences.getBoolean(SharedPreferencesUtils.MUTE_NSFW_VIDEO, false)) {
+                0f
+            } else {
+                host.playbackVolume ?: volume
+            }
         }
         applyMute()
         applyPlayback()
@@ -721,6 +921,13 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
 
     override fun onDestroyView() {
         releasePlayer()
+        resetVideoSurfaceTransform()
+        _binding?.videoGestureOverlayShadowboxMediaVideo?.let { gestureView ->
+            gestureView.setOnTouchListener(null)
+            gestureView.setOnClickListener(null)
+            gestureView.setOnLongClickListener(null)
+        }
+        videoTextureView = null
         _binding?.let { glide.clear(it.previewImageViewShadowboxMediaVideo) }
         _binding = null
         super.onDestroyView()
@@ -735,6 +942,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
 
         private const val TAG = "ShadowboxVideoPage"
         private const val POSTER_FADE_MS = 150L
+        private const val MAX_VIDEO_ZOOM = 4f
         private const val ARG_URI = "AU"
         private const val ARG_IS_GIF_MP4 = "AIGM"
 

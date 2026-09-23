@@ -44,3 +44,24 @@ alone. The backup screen names that scope when multiple local accounts exist.
 `LocalProfilesTest` exercises separate Room files, colliding multireddit paths,
 existing Default data, saved screen paths and account preference separation.
 Current validation and release status are recorded in current_state.md.
+
+# Independent TikTok feeds
+
+TikTok and TikTok with sound share the vertical pager, but each activity owns its
+listing through `PostFeedRequest` and `ViewPostDetailActivityViewModel`. Launchers
+pass source and sort settings, not a snapshot of regular-feed posts. Local Home
+and multireddits resolve their members in the selected profile's database. An
+empty local source stays empty instead of substituting a public feed.
+
+The loader keeps Reddit's listing cursor separately from the posts that survive
+filtering. A filtered batch is not the end of a listing. Source changes cancel
+in-flight work and invalidate late results; activity recreation can retain the
+independent request and loaded posts. Updates shared with regular feeds resolve
+post identity when list positions differ.
+
+Sound-only mode first selects playable clip candidates, then checks the player's
+supported audio tracks. Confirmed silent or unplayable candidates are skipped
+without treating the source as exhausted. Video zoom transforms the media surface
+while gesture coordinates and playback controls remain at their normal scale.
+Gallery preloading is bounded to the next preview and respects Data Saving;
+full-resolution image sources remain available on zoom.

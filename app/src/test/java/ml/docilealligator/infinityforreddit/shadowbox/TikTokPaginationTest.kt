@@ -61,4 +61,24 @@ class TikTokPaginationTest {
         assertEquals(2, adapter.postIndexForPage(1))
         controller.pause().stop().destroy()
     }
+
+    @Test fun `excluding a silent post invalidates its fragment and keeps other stable IDs`() {
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val silent = mock(Post::class.java)
+        val playable = mock(Post::class.java)
+        val posts = arrayListOf(silent, playable)
+        var includeSilent = true
+        val adapter = ShadowboxPagerAdapter(controller.get(), model(posts), { false }, { it !== silent || includeSilent })
+        adapter.buildPages()
+        val silentId = adapter.getItemId(0)
+        val playableId = adapter.getItemId(1)
+
+        includeSilent = false
+        adapter.buildPages()
+
+        assertFalse(adapter.containsItem(silentId))
+        assertTrue(adapter.containsItem(playableId))
+        assertEquals(playableId, adapter.getItemId(0))
+        controller.pause().stop().destroy()
+    }
 }

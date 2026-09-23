@@ -1418,20 +1418,26 @@ public class PostFragment extends PostFragmentBase implements FragmentCommunicat
         return false;
     }
 
-    /**
-     * Opens Shadowbox Mode on this feed, starting from the post at the top of the screen. The
-     * activity asks this fragment for the loaded posts over EventBus (the list is far too big for
-     * an Intent), so it only gets the fragment's id and where to start.
-     */
+    /** Opens an independent Shadowbox feed using this fragment's source and current sort. */
     private void startShadowboxMode() {
-        if (!hasPost || mAdapter == null) {
-            Toast.makeText(mActivity, R.string.no_posts_no_lazy_mode, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        int position = ScrollAnchor.captureTopmost(binding.recyclerViewPostFragment).position;
         Intent intent = new Intent(mActivity, ShadowboxActivity.class);
-        intent.putExtra(ShadowboxActivity.EXTRA_POST_FRAGMENT_ID, getPostFragmentId());
-        intent.putExtra(ShadowboxActivity.EXTRA_POST_LIST_POSITION, Math.max(position, 0));
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_POST_TYPE, postType);
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_SUBREDDIT_NAME, subredditName);
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_CONCATENATED_SUBREDDIT_NAMES, concatenatedSubredditNames);
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_USERNAME, username);
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_USER_WHERE, where);
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_MULTI_PATH, multiRedditPath);
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_QUERY, query);
+        if (sortType != null) {
+            intent.putExtra(ShadowboxActivity.EXTRA_FEED_SORT_TYPE, sortType.getType().name());
+            if (sortType.getTime() != null) {
+                intent.putExtra(ShadowboxActivity.EXTRA_FEED_SORT_TIME, sortType.getTime().name());
+            }
+        }
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_READ_POST_TYPE, ReadPostType.INVALID);
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_MEDIA_ONLY, shouldShowMediaOnlyPosts());
+        intent.putExtra(ShadowboxActivity.EXTRA_FEED_DISABLE_READ_POSTS,
+                getArguments() != null && getArguments().getBoolean(EXTRA_DISABLE_READ_POSTS, false));
         intent.putExtra(ShadowboxActivity.EXTRA_IS_NSFW_SUBREDDIT, getIsNsfwSubreddit());
         mActivity.startActivity(intent);
     }

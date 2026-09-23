@@ -1,4 +1,6 @@
 import os
+import gzip
+import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -20,6 +22,29 @@ def request(path, headers=(), method="GET", query=b""):
         "raw_path": path.encode(), "query_string": query, "headers": list(headers),
         "server": ("proxy.example", 10443),
     })
+
+
+class JsonCompressionTests(unittest.TestCase):
+    def test_large_listing_round_trips_with_correct_headers(self):
+        payload = {"posts": [{"title": "A photo", "url": "https://proxy.example/media/i.redd.it/a.jpg"}] * 100}
+        response = proxy.api_json_response(payload, request("/r/pics/hot.json", [(b"accept-encoding", b"gzip")]),
+                                           headers={"cache-control": "private", "vary": "Origin"})
+        self.assertEqual(response.headers["content-encoding"], "gzip")
+        self.assertEqual(json.loads(gzip.decompress(response.body)), payload)
+        self.assertEqual(int(response.headers["content-length"]), len(response.body))
+        self.assertLess(len(response.body), len(json.dumps(payload)) // 2)
+        self.assertEqual(response.headers["cache-control"], "private")
+        self.assertIn("Origin", response.headers["vary"])
+        self.assertIn("Accept-Encoding", response.headers["vary"])
+
+    def test_identity_and_explicit_gzip_rejection_remain_readable(self):
+        payload = {"body": "content " * 500}
+        for encoding in (b"identity", b"gzip;q=0, *;q=1", b"br"):
+            with self.subTest(encoding=encoding):
+                response = proxy.api_json_response(payload, request("/r/pics/hot.json", [(b"accept-encoding", encoding)]))
+                self.assertNotIn("content-encoding", response.headers)
+                self.assertEqual(json.loads(response.body), payload)
+                self.assertIn("Accept-Encoding", response.headers["vary"])
 
 
 class RewritingTests(unittest.TestCase):

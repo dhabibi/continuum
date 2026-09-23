@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import gzip
 import logging
 import os
 import re
@@ -286,6 +287,42 @@ async def healthz():
     return {"ok": True}
 
 
+def accepts_gzip(accept_encoding: str) -> bool:
+    wildcard = False
+    for item in accept_encoding.split(","):
+        coding, *parameters = item.strip().lower().split(";")
+        quality = 1.0
+        for parameter in parameters:
+            key, _, value = parameter.partition("=")
+            if key.strip() == "q":
+                try:
+                    quality = float(value.strip())
+                except ValueError:
+                    quality = 0.0
+        accepted = 0.0 < quality <= 1.0
+        if coding.strip() == "gzip":
+            return accepted
+        if coding.strip() == "*":
+            wildcard = accepted
+    return wildcard
+
+
+def api_json_response(content: Any, request: Request, status_code: int = 200,
+                      headers: dict[str, str] | None = None) -> JSONResponse:
+    """Compress listing JSON only; media streams and byte ranges retain their existing path."""
+    response = JSONResponse(content, status_code=status_code, headers=headers)
+    if len(response.body) < 1024:
+        return response
+    response.headers.add_vary_header("Accept-Encoding")
+    if accepts_gzip(request.headers.get("accept-encoding", "")):
+        compressed = gzip.compress(response.body, compresslevel=1, mtime=0)
+        if len(compressed) < len(response.body):
+            response.body = compressed
+            response.headers["content-encoding"] = "gzip"
+            response.headers["content-length"] = str(len(compressed))
+    return response
+
+
 @app.api_route("/{path:path}", methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 async def proxy(path: str, request: Request):
     try:
@@ -301,8 +338,8 @@ async def proxy(path: str, request: Request):
         }
         content_type = upstream.headers.get("content-type", "")
         if "json" in content_type.lower() and request.method != "HEAD":
-            return JSONResponse(rewrite_json(upstream.json()), status_code=upstream.status_code,
-                                headers=response_headers)
+            return api_json_response(rewrite_json(upstream.json()), request,
+                                     status_code=upstream.status_code, headers=response_headers)
         if content_type:
             response_headers["content-type"] = content_type
         return Response(upstream.content, status_code=upstream.status_code, headers=response_headers)

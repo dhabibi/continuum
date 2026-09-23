@@ -13,6 +13,15 @@
         app:surface_type="texture_view"
         app:resize_mode="fit" />
 
+    <!-- Gestures stay in these fixed layout coordinates while only the TextureView is transformed. -->
+    <View
+        android:id="@+id/video_gesture_overlay_shadowbox_media_video"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="true"
+        android:longClickable="true"
+        android:importantForAccessibility="no" />
+
     <!-- The post's preview, over the player rather than under it: the picture is what a page
          shows until the video is really running, so nothing appears out of a black surface. -->
     <ImageView

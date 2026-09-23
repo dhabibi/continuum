@@ -18,6 +18,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.InputType;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -111,6 +112,8 @@ import ml.docilealligator.infinityforreddit.events.ShowThumbnailOnTheLeftInCompa
 import ml.docilealligator.infinityforreddit.events.SwitchAccountEvent;
 import ml.docilealligator.infinityforreddit.fragments.CommentsListingFragment;
 import ml.docilealligator.infinityforreddit.fragments.PostFragment;
+import ml.docilealligator.infinityforreddit.multireddit.MultiReddit;
+import ml.docilealligator.infinityforreddit.post.PostType;
 import ml.docilealligator.infinityforreddit.message.FetchMessage;
 import ml.docilealligator.infinityforreddit.message.InboxCount;
 import ml.docilealligator.infinityforreddit.message.ReadMessage;
@@ -1075,7 +1078,13 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                     @Override
                     public void onMenuClick(int stringId) {
                         Intent intent = null;
-                        if (stringId == R.string.profile) {
+                        if (stringId == R.string.action_tiktok_mode) {
+                            showTikTokSourceChooser(false);
+                            return;
+                        } else if (stringId == R.string.action_tiktok_with_sound) {
+                            showTikTokSourceChooser(true);
+                            return;
+                        } else if (stringId == R.string.profile) {
                             intent = new Intent(MainActivity.this, ViewUserDetailActivity.class);
                             intent.putExtra(ViewUserDetailActivity.EXTRA_USER_NAME_KEY, accountName);
                         } else if (stringId == R.string.subscriptions) {
@@ -1517,6 +1526,89 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
                 SharedPreferencesUtils.REQUIRE_AUTHENTICATION_TO_GO_TO_ACCOUNT_SECTION_IN_NAVIGATION_DRAWER, false)) {
             adapter.openAccountManagementPage();
         }
+    }
+
+    private void showTikTokSourceChooser(boolean soundOnly) {
+        binding.drawerLayout.closeDrawers();
+        new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                .setTitle(R.string.tiktok_choose_source)
+                .setItems(new String[]{
+                        getString(R.string.tiktok_source_home),
+                        getString(R.string.tiktok_source_subreddit),
+                        getString(R.string.tiktok_source_multireddit)
+                }, (dialog, selection) -> {
+                    if (selection == 0) {
+                        int postType = accessToken == null
+                                ? PostType.ANONYMOUS_FRONT_PAGE : PostType.FRONT_PAGE;
+                        startTikTokFeed(soundOnly, postType, null, null);
+                    } else if (selection == 1) {
+                        showTikTokSubredditInput(soundOnly);
+                    } else if (selection == 2) {
+                        showTikTokMultiRedditPicker(soundOnly);
+                    }
+                })
+                .show();
+    }
+
+    private void showTikTokSubredditInput(boolean soundOnly) {
+        TextInputEditText subredditInput = new TextInputEditText(this);
+        subredditInput.setSingleLine(true);
+        subredditInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        subredditInput.setHint(R.string.tiktok_subreddit_name_hint);
+        new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                .setTitle(R.string.tiktok_enter_subreddit)
+                .setView(subredditInput)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.ok, (dialog, which) -> {
+                    String name = subredditInput.getText() == null
+                            ? "" : subredditInput.getText().toString().trim();
+                    name = name.replaceFirst("(?i)^/?r/", "").trim();
+                    if (!name.isEmpty()) {
+                        startTikTokFeed(soundOnly, PostType.SUBREDDIT, name, null);
+                    }
+                })
+                .show();
+    }
+
+    private void showTikTokMultiRedditPicker(boolean soundOnly) {
+        mExecutor.execute(() -> {
+            List<MultiReddit> multiReddits = mRedditDataRoomDatabase.multiRedditDao()
+                    .getAllMultiRedditsList(accountName);
+            mHandler.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (multiReddits == null || multiReddits.isEmpty()) {
+                    new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                            .setMessage(R.string.tiktok_no_multireddits)
+                            .setPositiveButton(R.string.ok, null)
+                            .show();
+                    return;
+                }
+                String[] names = new String[multiReddits.size()];
+                for (int index = 0; index < multiReddits.size(); index++) {
+                    MultiReddit multiReddit = multiReddits.get(index);
+                    names[index] = multiReddit.getDisplayName() == null
+                            ? multiReddit.getName() : multiReddit.getDisplayName();
+                }
+                new MaterialAlertDialogBuilder(this, R.style.MaterialAlertDialogTheme)
+                        .setTitle(R.string.tiktok_source_multireddit)
+                        .setItems(names, (dialog, selection) -> {
+                            MultiReddit multiReddit = multiReddits.get(selection);
+                            int postType = accessToken == null
+                                    ? PostType.ANONYMOUS_MULTIREDDIT : PostType.MULTIREDDIT;
+                            startTikTokFeed(soundOnly, postType, null, multiReddit.getPath());
+                        })
+                        .show();
+            });
+        });
+    }
+
+    private void startTikTokFeed(boolean soundOnly, int postType, String subredditName, String multiPath) {
+        Intent intent = new Intent(this, ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.class);
+        intent.putExtra(ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.EXTRA_FEED_POST_TYPE, postType);
+        intent.putExtra(ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.EXTRA_FEED_SUBREDDIT_NAME, subredditName);
+        intent.putExtra(ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.EXTRA_FEED_MULTI_PATH, multiPath);
+        intent.putExtra(ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.EXTRA_TIKTOK_WITH_SOUND, soundOnly);
+        startActivity(intent);
     }
 
     private void loadSubscriptions() {

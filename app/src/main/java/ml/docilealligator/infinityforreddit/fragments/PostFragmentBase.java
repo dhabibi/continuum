@@ -995,8 +995,21 @@ public abstract class PostFragmentBase extends Fragment {
         }
 
         ItemSnapshotList<Post> posts = getPostAdapter().snapshot();
-        if (event.positionInList >= 0 && event.positionInList < posts.size()) {
-            Post post = posts.get(event.positionInList);
+        int position = event.positionInList;
+        Post hintedPost = position >= 0 && position < posts.size() ? posts.get(position) : null;
+        if (hintedPost == null || !hintedPost.getFullName().equals(event.post.getFullName())) {
+            // Independent viewers can contain the same post at a different list position.
+            position = -1;
+            for (int index = 0; index < posts.size(); index++) {
+                Post candidate = posts.get(index);
+                if (candidate != null && candidate.getFullName().equals(event.post.getFullName())) {
+                    position = index;
+                    break;
+                }
+            }
+        }
+        if (position >= 0) {
+            Post post = posts.get(position);
             if (post != null && post.getFullName().equals(event.post.getFullName())) {
                 post.setTitle(event.post.getTitle());
                 post.setSelfText(event.post.getSelfText());
@@ -1063,7 +1076,7 @@ public abstract class PostFragmentBase extends Fragment {
                 if (event.post.isRead()) {
                     post.markAsRead();
                 }
-                getPostAdapter().notifyItemChanged(event.positionInList);
+                getPostAdapter().notifyItemChanged(position);
             }
         }
     }
