@@ -1602,7 +1602,8 @@ public class MainActivity extends BaseActivity implements SortTypeSelectionCallb
         });
     }
 
-    private void startTikTokFeed(boolean soundOnly, int postType, String subredditName, String multiPath) {
+    private void startTikTokFeed(boolean soundOnly, int postType,
+                                @Nullable String subredditName, @Nullable String multiPath) {
         Intent intent = new Intent(this, ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.class);
         intent.putExtra(ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.EXTRA_FEED_POST_TYPE, postType);
         intent.putExtra(ml.docilealligator.infinityforreddit.shadowbox.ShadowboxActivity.EXTRA_FEED_SUBREDDIT_NAME, subredditName);

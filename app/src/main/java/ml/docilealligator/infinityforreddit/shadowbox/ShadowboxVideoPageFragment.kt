@@ -408,8 +408,21 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val newScale = (videoZoomScale * detector.scaleFactor).coerceIn(1f, MAX_VIDEO_ZOOM)
                 val scaleFactor = newScale / videoZoomScale
-                val focusX = detector.focusX + gestureView.left - playerView.left - surface.left - surface.width / 2f
-                val focusY = detector.focusY + gestureView.top - playerView.top - surface.top - surface.height / 2f
+                // Media3 centers the surface inside an AspectRatioFrameLayout. Include every
+                // ancestor's layout offset so letterboxed clips zoom around the fingers too.
+                var centerX = surface.width / 2f
+                var centerY = surface.height / 2f
+                var ancestor: View? = surface
+                while (ancestor != null && ancestor !== gestureView.parent) {
+                    centerX += ancestor.left
+                    centerY += ancestor.top
+                    val parent = ancestor.parent as? View
+                    centerX -= parent?.scrollX ?: 0
+                    centerY -= parent?.scrollY ?: 0
+                    ancestor = parent
+                }
+                val focusX = detector.focusX + gestureView.left - centerX
+                val focusY = detector.focusY + gestureView.top - centerY
                 videoPanX = focusX * (1f - scaleFactor) + videoPanX * scaleFactor
                 videoPanY = focusY * (1f - scaleFactor) + videoPanY * scaleFactor
                 videoZoomScale = newScale
