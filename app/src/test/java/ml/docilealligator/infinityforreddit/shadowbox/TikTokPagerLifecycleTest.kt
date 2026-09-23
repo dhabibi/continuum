@@ -9,12 +9,16 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import ml.docilealligator.infinityforreddit.RedditDataRoomDatabase
 import ml.docilealligator.infinityforreddit.post.Post
 import ml.docilealligator.infinityforreddit.user.UserProfileImagesBatchLoader
 import ml.docilealligator.infinityforreddit.viewmodels.ViewPostDetailActivityViewModel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,58 +37,91 @@ import retrofit2.Retrofit
 class TikTokPagerLifecycleTest {
     @Test fun `fragment saved state stays bounded while scrolling and appending pages`() {
         val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
-        val activity = controller.get()
-        val pager = ViewPager2(activity).apply {
-            orientation = ViewPager2.ORIENTATION_VERTICAL
-            offscreenPageLimit = 1
-        }
-        val posts = arrayListOf<Post>()
-        val viewModel = ViewPostDetailActivityViewModel(
-            mock(Retrofit::class.java), mock(Retrofit::class.java), mock(RedditDataRoomDatabase::class.java),
-            null, mock(UserProfileImagesBatchLoader::class.java)
-        ).also { it.posts = posts }
-        val adapter = spy(ShadowboxPagerAdapter(activity, viewModel, { false }, { true }))
-        doAnswer { invocation ->
-            PagerStateProbeFragment.newInstance(invocation.getArgument(0))
-        }.`when`(adapter).createFragment(anyInt())
-        val samples = mutableListOf<Pair<Int, SavedStateMetrics>>()
+        try {
+            val activity = controller.get()
+            val pager = ViewPager2(activity).apply {
+                orientation = ViewPager2.ORIENTATION_VERTICAL
+                offscreenPageLimit = 1
+            }
+            val posts = arrayListOf<Post>()
+            val viewModel = ViewPostDetailActivityViewModel(
+                mock(Retrofit::class.java), mock(Retrofit::class.java), mock(RedditDataRoomDatabase::class.java),
+                null, mock(UserProfileImagesBatchLoader::class.java)
+            ).also { it.posts = posts }
+            val adapter = spy(ShadowboxPagerAdapter(activity, viewModel, { false }, { true }))
+            doAnswer { invocation ->
+                PagerStateProbeFragment.newInstance(invocation.getArgument(0))
+            }.`when`(adapter).createFragment(anyInt())
+            val samples = mutableListOf<Pair<Int, SavedStateMetrics>>()
+            var firstPageZeroId: Long? = null
 
-        repeat(3) { batch ->
-            repeat(PAGES_PER_BATCH) { posts.add(mock(Post::class.java)) }
-            if (batch == 0) adapter.buildPages() else assertEquals(PAGES_PER_BATCH, adapter.appendPages())
-            if (batch == 0) {
-                activity.setContentView(pager)
-                pager.adapter = adapter
-                settle(pager)
+            repeat(3) { batch ->
+                val lastExistingPage = batch * PAGES_PER_BATCH - 1
+                val lastExistingPageId = if (batch == 0) null else adapter.getItemId(lastExistingPage)
+                repeat(PAGES_PER_BATCH) { posts.add(mock(Post::class.java)) }
+                if (batch == 0) adapter.buildPages() else assertEquals(PAGES_PER_BATCH, adapter.appendPages())
+                lastExistingPageId?.let { assertEquals(it, adapter.getItemId(lastExistingPage)) }
+                if (batch == 0) {
+                    activity.setContentView(pager)
+                    pager.adapter = adapter
+                    settle(pager)
+                }
+
+                val firstPage = batch * PAGES_PER_BATCH
+                val endPage = firstPage + PAGES_PER_BATCH - 1
+                for (page in firstPage..endPage) {
+                    pager.setCurrentItem(page, false)
+                    settle(pager)
+                    assertCurrentPage(pager, page)
+                    prunePagerPageInstances(pager, adapter)
+                    settle(pager)
+                    assertCurrentPage(pager, page)
+                    if (page == 0 && batch == 0) firstPageZeroId = adapter.getItemId(0)
+                    if (page == PAGE_INSTANCE_RETAIN_RADIUS + 1) {
+                        assertFalse(adapter.containsItem(requireNotNull(firstPageZeroId)))
+                    }
+                    if (page == firstPage || page == firstPage + PAGES_PER_BATCH / 2 || page == endPage) {
+                        samples.add(page to savedStateMetrics(adapter))
+                    }
+                }
             }
 
-            val firstPage = batch * PAGES_PER_BATCH
-            val endPage = firstPage + PAGES_PER_BATCH - 1
-            for (page in firstPage..endPage) {
+            for (page in (TOTAL_PAGES - 2) downTo 0) {
                 pager.setCurrentItem(page, false)
                 settle(pager)
-                if (page == firstPage || page == firstPage + PAGES_PER_BATCH / 2 || page == endPage) {
+                assertCurrentPage(pager, page)
+                prunePagerPageInstances(pager, adapter)
+                settle(pager)
+                assertCurrentPage(pager, page)
+                if (page == 0) assertNotEquals(firstPageZeroId, adapter.getItemId(0))
+                if (page == TOTAL_PAGES - 2 || page == TOTAL_PAGES / 2 || page == 0) {
                     samples.add(page to savedStateMetrics(adapter))
                 }
             }
-        }
 
-        for (page in (TOTAL_PAGES - 2) downTo 0) {
-            pager.setCurrentItem(page, false)
-            settle(pager)
-            if (page == TOTAL_PAGES - 2 || page == TOTAL_PAGES / 2 || page == 0) {
+            for (page in listOf(TOTAL_PAGES - 1, TOTAL_PAGES / 2, 0)) {
+                pager.setCurrentItem(page, false)
+                settle(pager)
+                assertCurrentPage(pager, page)
+                prunePagerPageInstances(pager, adapter)
+                settle(pager)
+                assertCurrentPage(pager, page)
                 samples.add(page to savedStateMetrics(adapter))
             }
-        }
 
-        val measurements = samples.joinToString { (page, state) ->
-            "page=$page saved=${state.savedFragmentStates} parcel=${state.parcelBytes}B"
+            val measurements = samples.joinToString { (page, state) ->
+                "page=$page saved=${state.savedFragmentStates} parcel=${state.parcelBytes}B"
+            }
+            assertTrue(
+                "FragmentStateAdapter retained too many detached page states: $measurements",
+                samples.all { (_, state) -> state.savedFragmentStates <= MAX_SAVED_FRAGMENT_STATES }
+            )
+            assertTrue("Saved state grew with scroll depth: $measurements",
+                samples.all { (_, state) -> state.parcelBytes < 32 * 1024 })
+            assertEquals(TOTAL_PAGES, posts.size)
+        } finally {
+            controller.pause().stop().destroy()
         }
-        assertTrue(
-            "FragmentStateAdapter retained too many detached page states: $measurements",
-            samples.all { (_, state) -> state.savedFragmentStates <= MAX_SAVED_FRAGMENT_STATES }
-        )
-        controller.pause().stop().destroy()
     }
 
     private fun settle(pager: ViewPager2) {
@@ -113,16 +150,44 @@ class TikTokPagerLifecycleTest {
         }
     }
 
+    private fun assertCurrentPage(pager: ViewPager2, expectedPage: Int) {
+        assertEquals(expectedPage, pager.currentItem)
+        assertEquals(expectedPage, (pager.adapter as ShadowboxPagerAdapter).postIndexForPage(expectedPage))
+        val activity = pager.context as FragmentActivity
+        val resumedPages = activity.supportFragmentManager.fragments
+            .filterIsInstance<PagerStateProbeFragment>()
+            .filter { it.lifecycle.currentState == Lifecycle.State.RESUMED }
+        assertEquals("Expected exactly one resumed page after moving to $expectedPage", 1, resumedPages.size)
+        assertEquals(expectedPage, resumedPages.single().pageIndex())
+    }
+
+    private fun prunePagerPageInstances(pager: ViewPager2, adapter: ShadowboxPagerAdapter) {
+        val recyclerView = pager.getChildAt(0) as RecyclerView
+        assertEquals(RecyclerView.SCROLL_STATE_IDLE, recyclerView.scrollState)
+        val currentPage = pager.currentItem.coerceAtMost(adapter.pageCount)
+        val firstPage = (currentPage - PAGE_INSTANCE_RETAIN_RADIUS).coerceAtLeast(0)
+        val lastPage = (currentPage + PAGE_INSTANCE_RETAIN_RADIUS).coerceAtMost(adapter.pageCount)
+        val protectedPages = (firstPage..lastPage).toMutableSet()
+        for (childIndex in 0 until recyclerView.childCount) {
+            val page = recyclerView.getChildAdapterPosition(recyclerView.getChildAt(childIndex))
+            if (page != RecyclerView.NO_POSITION) protectedPages.add(page)
+        }
+        if (adapter.retainPageInstanceIds(protectedPages)) adapter.notifyDataSetChanged()
+    }
+
     private data class SavedStateMetrics(val savedFragmentStates: Int, val parcelBytes: Int)
 
     companion object {
         private const val PAGES_PER_BATCH = 100
         private const val TOTAL_PAGES = 300
+        private const val PAGE_INSTANCE_RETAIN_RADIUS = 3
         private const val MAX_SAVED_FRAGMENT_STATES = 8
     }
 }
 
 class PagerStateProbeFragment : Fragment() {
+    fun pageIndex(): Int = requireArguments().getInt(ARG_PAGE)
+
     override fun onCreateView(
         inflater: android.view.LayoutInflater,
         container: ViewGroup?,

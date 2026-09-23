@@ -101,6 +101,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
 
     private lateinit var binding: ActivityShadowboxBinding
     private var adapter: ShadowboxPagerAdapter? = null
+    private var pageInstancePrunePending = false
     var feedGeneration = 0L
         private set
     private var lastHandledBatchId = Long.MIN_VALUE
@@ -245,6 +246,14 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         // evicts. The cost is that a video page either side prepares its player, the same trade
         // the feed makes for autoplay.
         binding.viewPager2ShadowboxActivity.offscreenPageLimit = 1
+        val pagerRecyclerView = binding.viewPager2ShadowboxActivity.getChildAt(0) as RecyclerView
+        pagerRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                    schedulePagerPageInstancePruning()
+                }
+            }
+        })
         val posts = viewModel.posts
         val restoredPostIndex = if (hasExistingFeed && restorePostFullName != null) {
             posts?.indexOfFirst { it.fullName == restorePostFullName } ?: -1
@@ -296,9 +305,40 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
             fetchMorePosts()
         }
         stopPlaybackExcept(postIndex)
+        schedulePagerPageInstancePruning()
         val posts = viewModel.posts ?: return
         if (postIndex in posts.indices) {
             markPostRead(posts[postIndex], postIndex)
+        }
+    }
+
+    /** Retain FragmentStateAdapter state only around the visible/attached pager window. */
+    private fun schedulePagerPageInstancePruning() {
+        if (pageInstancePrunePending || isFinishing || isDestroyed || supportFragmentManager.isStateSaved) return
+        val pager = binding.viewPager2ShadowboxActivity
+        val recyclerView = pager.getChildAt(0) as? RecyclerView ?: return
+        if (recyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) return
+
+        pageInstancePrunePending = true
+        recyclerView.post {
+            pageInstancePrunePending = false
+            if (isFinishing || isDestroyed || supportFragmentManager.isStateSaved) return@post
+            val settledRecyclerView = pager.getChildAt(0) as? RecyclerView ?: return@post
+            if (settledRecyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE ||
+                settledRecyclerView.isComputingLayout
+            ) return@post
+            val pagerAdapter = adapter ?: return@post
+            val currentPage = pager.currentItem.coerceAtMost(pagerAdapter.pageCount)
+            val firstProtectedPage = (currentPage - PAGE_INSTANCE_RETAIN_RADIUS).coerceAtLeast(0)
+            val lastProtectedPage = (currentPage + PAGE_INSTANCE_RETAIN_RADIUS).coerceAtMost(pagerAdapter.pageCount)
+            val protectedPages = (firstProtectedPage..lastProtectedPage).toMutableSet()
+            for (childIndex in 0 until settledRecyclerView.childCount) {
+                val page = settledRecyclerView.getChildAdapterPosition(settledRecyclerView.getChildAt(childIndex))
+                if (page != RecyclerView.NO_POSITION) protectedPages.add(page)
+            }
+            if (pagerAdapter.retainPageInstanceIds(protectedPages)) {
+                pagerAdapter.notifyDataSetChanged()
+            }
         }
     }
 
@@ -703,6 +743,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
                 fragment.restoreMedia()
             }
         }
+        schedulePagerPageInstancePruning()
     }
 
     override fun onPause() {
@@ -778,5 +819,6 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         private const val STATE_SORT_TYPE = "SST"
         private const val STATE_SORT_TIME = "SSTM"
         private const val PREFETCH_LEAD_PAGES = 15
+        private const val PAGE_INSTANCE_RETAIN_RADIUS = 3
     }
 }

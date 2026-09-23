@@ -5,6 +5,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import ml.docilealligator.infinityforreddit.post.Post
 import ml.docilealligator.infinityforreddit.viewmodels.ViewPostDetailActivityViewModel
+import java.util.Collections
 import java.util.IdentityHashMap
 
 /**
@@ -38,6 +39,34 @@ class ShadowboxPagerAdapter(
     /** How many posts are on screen in this mode, excluding the trailing end page. */
     val pageCount: Int
         get() = pages.size
+
+    /**
+     * Retires fragment instance IDs outside the pager's attached/recent window. The post data
+     * stays in the ViewModel and remains browsable; revisiting a retired page gets a fresh ID and
+     * recreates its Fragment instead of retaining a saved Fragment state for the whole feed.
+     *
+     * @return true when IDs were retired and FragmentStateAdapter should run its state GC.
+     */
+    fun retainPageInstanceIds(pagePositions: Set<Int>): Boolean {
+        val currentPosts = posts()
+        val retainedPosts = Collections.newSetFromMap(IdentityHashMap<Post, Boolean>())
+        pagePositions.forEach { page ->
+            val postIndex = pages.getOrNull(page) ?: return@forEach
+            currentPosts.getOrNull(postIndex)?.let(retainedPosts::add)
+        }
+
+        var retiredIds = false
+        val idsIterator = idsByPost.entries.iterator()
+        while (idsIterator.hasNext()) {
+            val (post, itemId) = idsIterator.next()
+            if (!retainedPosts.contains(post)) {
+                postsById.remove(itemId)
+                idsIterator.remove()
+                retiredIds = true
+            }
+        }
+        return retiredIds
+    }
 
     private fun posts(): List<Post> = viewModel.posts ?: emptyList()
 

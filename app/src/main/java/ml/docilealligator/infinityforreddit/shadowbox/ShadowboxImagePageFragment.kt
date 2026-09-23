@@ -1,10 +1,12 @@
 package ml.docilealligator.infinityforreddit.shadowbox
 
+import android.graphics.drawable.Animatable
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.piasy.biv.loader.ImageLoader
 import ml.docilealligator.infinityforreddit.SaveMemoryCenterInisdeDownsampleStrategy
@@ -123,8 +125,25 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
     }
 
     override fun onDestroyView() {
-        _binding?.imageViewShadowboxMediaImage?.cancel()
-        _binding?.let { glide.clear(it.previewImageViewShadowboxMediaImage) }
+        _binding?.let { binding ->
+            val imageView = binding.imageViewShadowboxMediaImage
+            imageView.setImageLoaderCallback(null)
+            imageView.cancel()
+            // BigImageView.cancel() cancels downloads only. Release the decoded tiles and
+            // native decoder as soon as this page leaves the pager, including after zooming.
+            imageView.ssiv?.let { tiledImage ->
+                tiledImage.setOnImageEventListener(null)
+                tiledImage.recycle()
+            }
+            // The GIF factory uses an Activity-scoped Glide request, so fragment destruction
+            // alone does not clear its target or stop animation.
+            (imageView.mainView as? ImageView)?.let { animatedImage ->
+                (animatedImage.drawable as? Animatable)?.stop()
+                glide.clear(animatedImage)
+            }
+            binding.previewImageViewShadowboxMediaImage.animate().cancel()
+            glide.clear(binding.previewImageViewShadowboxMediaImage)
+        }
         _binding = null
         super.onDestroyView()
     }

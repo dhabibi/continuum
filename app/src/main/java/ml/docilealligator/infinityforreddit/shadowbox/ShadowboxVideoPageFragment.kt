@@ -30,6 +30,7 @@ import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -243,6 +244,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         val trackSelector = DefaultTrackSelector(host)
         this.trackSelector = trackSelector
         val player = ExoPlayer.Builder(host)
+            .setLoadControl(createLoadControl())
             .setTrackSelector(trackSelector)
             .setRenderersFactory(DefaultRenderersFactory(host).setEnableDecoderFallback(true))
             .setSeekBackIncrementMs(Constants.VIDEO_SEEK_BACK_INCREMENT_MS)
@@ -956,8 +958,16 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         private const val TAG = "ShadowboxVideoPage"
         private const val POSTER_FADE_MS = 150L
         private const val MAX_VIDEO_ZOOM = 4f
+        private const val VIDEO_BUFFER_BYTES = 16 * 1024 * 1024
         private const val ARG_URI = "AU"
         private const val ARG_IS_GIF_MP4 = "AIGM"
+
+        internal fun createLoadControl(): DefaultLoadControl = DefaultLoadControl.Builder()
+            // Current and neighboring pages prepare separate players. Bound each compressed
+            // media buffer without changing resolution, startup timing, or the disk cache.
+            .setTargetBufferBytes(VIDEO_BUFFER_BYTES)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .build()
 
         fun newInstance(position: Int, blur: Boolean, uri: String, isGifMp4: Boolean): ShadowboxVideoPageFragment {
             val fragment = ShadowboxVideoPageFragment()
