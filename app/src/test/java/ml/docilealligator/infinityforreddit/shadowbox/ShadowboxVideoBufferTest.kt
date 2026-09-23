@@ -52,10 +52,15 @@ class ShadowboxVideoBufferTest {
                 control.shouldContinueLoading(parameters))
             assertTrue(allocator.totalBytesAllocated <= safetyLimit)
         } finally {
-            allocations.forEach { allocator.release(it) }
-            control.onReleased(playerId)
+            try {
+                allocations.forEach { allocator.release(it) }
+                assertEquals(0, allocator.totalBytesAllocated)
+            } finally {
+                // Media3 removes the player's allocation tracker here; its scoped allocator
+                // cannot be queried after release.
+                control.onReleased(playerId)
+            }
         }
-        assertEquals(0, allocator.totalBytesAllocated)
     }
 
     @Test fun `memory budgeting preserves normal start and rebuffer timing`() {
