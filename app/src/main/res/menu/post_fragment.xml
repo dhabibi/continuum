@@ -8,6 +8,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_tiktok_with_sound_post_fragment"
+        android:orderInCategory="99"
+        android:title="@string/action_tiktok_with_sound"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_lazy_mode_post_fragment"
         android:orderInCategory="100"
         android:title="@string/action_start_lazy_mode"

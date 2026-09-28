@@ -1395,7 +1395,10 @@ public class PostFragment extends PostFragmentBase implements FragmentCommunicat
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.action_shadowbox_mode_post_fragment) {
-            startShadowboxMode();
+            startShadowboxMode(false);
+            return true;
+        } else if (item.getItemId() == R.id.action_tiktok_with_sound_post_fragment) {
+            startShadowboxMode(true);
             return true;
         } else if (item.getItemId() == R.id.action_lazy_mode_post_fragment) {
             if (isInLazyMode) {
@@ -1419,8 +1422,9 @@ public class PostFragment extends PostFragmentBase implements FragmentCommunicat
     }
 
     /** Opens an independent Shadowbox feed using this fragment's source and current sort. */
-    private void startShadowboxMode() {
+    private void startShadowboxMode(boolean withSound) {
         Intent intent = new Intent(mActivity, ShadowboxActivity.class);
+        intent.putExtra(ShadowboxActivity.EXTRA_TIKTOK_WITH_SOUND, withSound);
         intent.putExtra(ShadowboxActivity.EXTRA_FEED_POST_TYPE, postType);
         intent.putExtra(ShadowboxActivity.EXTRA_FEED_SUBREDDIT_NAME, subredditName);
         intent.putExtra(ShadowboxActivity.EXTRA_FEED_CONCATENATED_SUBREDDIT_NAMES, concatenatedSubredditNames);

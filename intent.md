@@ -108,3 +108,7 @@ infinite scrolling usable. Sound-only TikTok must check clips before displaying
 them; silently loading then visibly skipping videos without audio does not meet
 the intended behavior. Preserve the existing source choices, profile data, media
 controls and signed update delivery.
+
+Daniel prefers launching TikTok from a loaded feed's three-dot menu, avoiding the
+sidebar's source chooser and typing. Both TikTok and TikTok with sound must be
+available there and inherit the current subreddit/multireddit and sort selection.
