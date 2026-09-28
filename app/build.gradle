@@ -80,8 +80,8 @@ android {
 
         minSdk 24
         targetSdk 36
-        versionCode 239
-        versionName "8.3.1.8-vps.10"
+        versionCode 240
+        versionName "8.3.1.8-vps.11"
         testInstrumentationRunner "com.kaspersky.kaspresso.runner.KaspressoRunner"
         // The fallback must be 22 characters (APIKeysPreferenceFragment.CLIENT_ID_LENGTH) and must
         // not be R.string.default_client_id, or the API Keys dialog leaves its OK button disabled
@@ -430,13 +430,15 @@ dependencies {
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.2.0"
 
 /** ExoPlayer **/
-    def media3_version = "1.10.1"
+    // 1.11 fixes the audio-session startup race in ExoPlayerImpl; keep these modules aligned.
+    def media3_version = "1.11.1"
     implementation "androidx.media3:media3-exoplayer:$media3_version"
     implementation "androidx.media3:media3-exoplayer-dash:$media3_version"
     implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
     implementation "androidx.media3:media3-ui:$media3_version"
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3_version"
     implementation "androidx.media3:media3-datasource-okhttp:$media3_version"
+    implementation "androidx.media3:media3-inspector:$media3_version"
 
 /** Third-party **/
 

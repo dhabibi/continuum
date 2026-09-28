@@ -59,9 +59,24 @@ in-flight work and invalidate late results; activity recreation can retain the
 independent request and loaded posts. Updates shared with regular feeds resolve
 post identity when list positions differ.
 
-Sound-only mode first selects playable clip candidates, then checks the player's
-supported audio tracks. Confirmed silent or unplayable candidates are skipped
-without treating the source as exhausted. Video zoom transforms the media surface
-while gesture coordinates and playback controls remain at their normal scale.
+Sound-only mode admits clips only after a bounded offscreen metadata read finds
+both video and audio tracks. It checks candidates sequentially and prepares a
+small lead of audible posts. A filtered source batch still advances Reddit's
+cursor. Confirmed silent or invalid media is omitted; transient failures offer
+retry. Player track checks remain as a final guard for device support and fallback
+URLs, with playback errors staying on the current page rather than forcing a swipe.
+
+Admission decisions and the scan position live in a separate retained ViewModel,
+scoped to this activity's source. They reset when the source changes and are not
+serialized as a growing list of URLs into the activity's saved Bundle. A changed
+URL is checked again, and late admission preserves the selected post's identity.
+Metadata work is canceled when the activity pauses or its source changes.
+
+Both Home autoplay and TikTok use Media3 1.11.1. It includes the upstream fix for
+the player-startup audio-session race on shared timeline state that was present
+in 1.10.1. Keep the player, format extensions, UI and inspector modules aligned.
+
+Video zoom transforms the media surface while gesture coordinates and playback
+controls remain at their normal scale.
 Gallery preloading is bounded to the next preview and respects Data Saving;
 full-resolution image sources remain available on zoom.

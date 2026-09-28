@@ -3,6 +3,7 @@ package ml.docilealligator.infinityforreddit.shadowbox
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -18,6 +19,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
+import androidx.media3.datasource.cache.SimpleCache
 import com.github.piasy.biv.BigImageViewer
 import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader
 import ml.docilealligator.infinityforreddit.ImageOkHttpClient
@@ -51,6 +53,7 @@ import ml.docilealligator.infinityforreddit.viewmodels.PostFeedRequest
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import retrofit2.Retrofit
+import okhttp3.OkHttpClient
 import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Named
@@ -94,6 +97,13 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
     @Inject
     lateinit var loader: UserProfileImagesBatchLoader
 
+    @Inject
+    @Named("media3")
+    lateinit var mediaClient: OkHttpClient
+
+    @Inject
+    lateinit var simpleCache: SimpleCache
+
     lateinit var viewModel: ViewPostDetailActivityViewModel
         private set
     lateinit var insetsViewModel: ViewGalleryViewModel
@@ -105,7 +115,16 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
     var feedGeneration = 0L
         private set
     private var lastHandledBatchId = Long.MIN_VALUE
-    private val excludedSoundOnlyPostIds = mutableSetOf<String>()
+    private lateinit var soundOnlyState: ShadowboxSoundOnlyState
+    private val confirmedSoundOnlyPosts get() = soundOnlyState.confirmed
+    private val excludedSoundOnlyPosts get() = soundOnlyState.excluded
+    private var soundOnlyNextPostIndex: Int
+        get() = soundOnlyState.nextPostIndex
+        set(value) { soundOnlyState.nextPostIndex = value }
+    private var soundOnlyProbe: ShadowboxSoundOnlyProbe? = null
+    private var soundOnlyProbeActive = false
+    private var soundOnlyForeground = false
+    val soundOnlyProbeStatus = MutableLiveData(SoundOnlyProbeStatus.IDLE)
     private var restorePostFullName: String? = null
 
     /** Index of the page the pager is on; only that page plays media. */
@@ -118,6 +137,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         private set
     var isTikTokWithSound = false
         private set
+    enum class SoundOnlyProbeStatus { IDLE, LOADING, FAILED }
     private var chromeVisible = true
     private var markPostsAsRead = false
     /** Sound level chosen during this Shadowbox session, shared by its video pages. */
@@ -156,8 +176,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
 
         isNsfwSubreddit = intent.getBooleanExtra(EXTRA_IS_NSFW_SUBREDDIT, false)
         isTikTokWithSound = intent.getBooleanExtra(EXTRA_TIKTOK_WITH_SOUND, false)
-        savedInstanceState?.getStringArrayList(STATE_EXCLUDED_SOUND_ONLY_POST_IDS)
-            ?.let(excludedSoundOnlyPostIds::addAll)
+        soundOnlyState = ViewModelProvider(this)[ShadowboxSoundOnlyState::class.java]
         restorePostFullName = savedInstanceState?.getString(STATE_CURRENT_POST_FULL_NAME)
         savedInstanceState?.let { state ->
             if (state.containsKey(STATE_PLAYBACK_VOLUME)) playbackVolume = state.getFloat(STATE_PLAYBACK_VOLUME)
@@ -221,6 +240,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
             // A recreated activity keeps its independent request and already loaded list.
             feedGeneration = 1L
             lastHandledBatchId = viewModel.loadMorePostsState.value?.batchId ?: Long.MIN_VALUE
+            if (isTikTokWithSound) reconcileSoundOnlyDecisions()
         } else if (intentFeedRequest != null) {
             startFeedWithProfileFilter(intentFeedRequest)
         } else {
@@ -260,7 +280,9 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         } else {
             -1
         }
-        if (restoredPostIndex >= 0) restorePostFullName = null
+        if (restoredPostIndex >= 0 &&
+            (!isTikTokWithSound || adapter.postIndexForPage(adapter.pageForPostIndex(restoredPostIndex)) == restoredPostIndex)
+        ) restorePostFullName = null
         val launchPostIndex = restoredPostIndex.takeIf { it >= 0 } ?: 0
         val launchPage = if (posts.isNullOrEmpty()) 0 else adapter.pageForPostIndex(launchPostIndex)
         binding.viewPager2ShadowboxActivity.setCurrentItem(launchPage, false)
@@ -301,7 +323,9 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         val adapter = this.adapter ?: return
         val postIndex = adapter.postIndexForPage(page)
         currentPage.value = postIndex
-        if (adapter.pageCount - page <= PREFETCH_LEAD_PAGES) {
+        if (isTikTokWithSound) {
+            continueSoundOnlyAdmission()
+        } else if (adapter.pageCount - page <= PREFETCH_LEAD_PAGES) {
             fetchMorePosts()
         }
         stopPlaybackExcept(postIndex)
@@ -427,6 +451,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
     }
 
     private fun startFeedWithProfileFilter(request: PostFeedRequest) {
+        resetSoundOnlyAdmission()
         val generation = ++feedGeneration
         lastHandledBatchId = Long.MIN_VALUE
 
@@ -463,10 +488,27 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
     }
 
     fun fetchMorePosts() {
+        if (isTikTokWithSound && soundOnlyProbeStatus.value == SoundOnlyProbeStatus.FAILED) {
+            soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
+            continueSoundOnlyAdmission()
+            return
+        }
         if (isFinishing || isDestroyed || viewModel.currentFeedRequest == null) return
         val state = viewModel.loadMorePostsState.value ?: return
         if (state.status == LoadingMorePostsStatus.LOADING || !state.hasMore) return
         viewModel.loadNextFeedPage()
+    }
+
+    /** Explicit escape for a permanently broken URL after the user has tried the footer retry. */
+    fun skipFailedSoundOnlyClip(): Boolean {
+        if (!isTikTokWithSound || soundOnlyProbeStatus.value != SoundOnlyProbeStatus.FAILED) return false
+        val post = viewModel.posts?.getOrNull(soundOnlyNextPostIndex) ?: return false
+        excludedSoundOnlyPosts[post.fullName] = soundOnlySourceSignature(post)
+        if (post.fullName == restorePostFullName) restorePostFullName = null
+        soundOnlyNextPostIndex++
+        soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
+        continueSoundOnlyAdmission()
+        return true
     }
 
     fun isSoundOnlyFeedEmpty(): Boolean = isTikTokWithSound && (adapter?.pageCount == 0)
@@ -486,6 +528,11 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         }
         val adapter = this.adapter ?: return
         lastHandledBatchId = state.batchId
+        if (isTikTokWithSound) {
+            // Source batches contain candidates. Only the offscreen verifier admits pager pages.
+            continueSoundOnlyAdmission()
+            return
+        }
         val oldPageCount = adapter.pageCount
         val wasOnEndPage = binding.viewPager2ShadowboxActivity.currentItem >= oldPageCount
         val added = adapter.appendPages()
@@ -561,7 +608,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
      */
     private fun shouldShowPost(post: Post): Boolean {
         if (isTikTokWithSound) {
-            return isPlayableClipCandidate(post) && post.fullName !in excludedSoundOnlyPostIds
+            return confirmedSoundOnlyPosts[post.fullName] == soundOnlySourceSignature(post)
         }
         return !hideTextAndPreviewlessPosts || ShadowboxPreviews.hasPreviewToShow(post)
     }
@@ -573,62 +620,155 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         else -> false
     }
 
-    /** Called only after Media3 reports a ready, supported track set for this exact post. */
-    fun onSoundOnlyAudioAvailability(post: Post, hasPlayableAudio: Boolean, sourceGeneration: Long) {
-        if (!isTikTokWithSound || isFinishing || isDestroyed ||
-            sourceGeneration != feedGeneration || hasPlayableAudio
-        ) return
-        excludeSoundOnlyPost(post, sourceGeneration)
+    private fun soundOnlyUrls(post: Post): List<Uri> {
+        val posted = when (post.postType) {
+            Post.GIF_TYPE -> post.mp4Variant
+            Post.VIDEO_TYPE -> post.videoUrl
+            else -> null
+        }?.let(Uri::parse) ?: return emptyList()
+        val selected = ShadowboxVideoPageFragment.playbackUriFor(
+            posted, ShadowboxPreviews.dataSavingMode(this, sharedPreferences), sharedPreferences
+        )
+        return listOfNotNull(selected, posted, post.videoFallBackDirectUrl?.let(Uri::parse)).distinct()
     }
 
-    /** A confirmed playback failure after all known URL fallbacks cannot play in this feed. */
-    fun onSoundOnlyPostUnplayable(post: Post, sourceGeneration: Long) {
-        if (!isTikTokWithSound || isFinishing || isDestroyed || sourceGeneration != feedGeneration) return
-        excludeSoundOnlyPost(post, sourceGeneration)
+    private fun soundOnlySourceSignature(post: Post): String =
+        soundOnlyUrls(post).joinToString("\u0000") { it.toString() }
+
+    private fun resetSoundOnlyAdmission() {
+        soundOnlyProbe?.cancel()
+        soundOnlyProbeActive = false
+        soundOnlyState.reset()
+        soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
     }
 
-    private fun excludeSoundOnlyPost(post: Post, sourceGeneration: Long) {
-        val posts = viewModel.posts ?: return
-        val excludedPostIndex = posts.indexOfFirst { it.fullName == post.fullName }
-        if (excludedPostIndex < 0 || !excludedSoundOnlyPostIds.add(post.fullName)) return
-
-        val applyExclusion = object : Runnable {
-            override fun run() {
-                if (isFinishing || isDestroyed || sourceGeneration != feedGeneration) return
-                val recyclerView = binding.viewPager2ShadowboxActivity.getChildAt(0) as? RecyclerView
-                if (recyclerView?.isComputingLayout == true) {
-                    recyclerView.post(this)
-                    return
-                }
-                val currentAdapter = adapter ?: return
-                val currentPostIndex = currentAdapter.postIndexForPage(
-                    binding.viewPager2ShadowboxActivity.currentItem
-                )
-                currentAdapter.buildPages()
-                currentAdapter.notifyDataSetChanged()
-
-                val targetPage = when {
-                    currentPostIndex < 0 -> currentAdapter.pageCount
-                    currentPostIndex == excludedPostIndex -> firstPageAtOrAfterPostIndex(excludedPostIndex + 1)
-                    else -> firstPageAtOrAfterPostIndex(currentPostIndex)
-                }
-                val moveToTarget = object : Runnable {
-                    override fun run() {
-                        if (isFinishing || isDestroyed || sourceGeneration != feedGeneration) return
-                        val pagerRecyclerView = binding.viewPager2ShadowboxActivity.getChildAt(0) as? RecyclerView
-                        if (pagerRecyclerView?.isComputingLayout == true) {
-                            pagerRecyclerView.post(this)
-                            return
-                        }
-                        if (adapter !== currentAdapter) return
-                        binding.viewPager2ShadowboxActivity.setCurrentItem(targetPage, false)
-                        onPageShown(targetPage)
-                    }
-                }
-                binding.viewPager2ShadowboxActivity.post(moveToTarget)
+    private fun reconcileSoundOnlyDecisions() {
+        viewModel.posts.orEmpty().forEachIndexed { index, post ->
+            val signature = soundOnlySourceSignature(post)
+            val confirmed = confirmedSoundOnlyPosts[post.fullName]
+            val excluded = excludedSoundOnlyPosts[post.fullName]
+            if ((confirmed != null && confirmed != signature) ||
+                (excluded != null && excluded != signature)
+            ) {
+                confirmedSoundOnlyPosts.remove(post.fullName)
+                excludedSoundOnlyPosts.remove(post.fullName)
+                soundOnlyNextPostIndex = minOf(soundOnlyNextPostIndex, index)
             }
         }
-        applyExclusion.run()
+    }
+
+    /** Verify in source order until a short lead exists; a filtered source batch is not an end. */
+    private fun continueSoundOnlyAdmission() {
+        if (!isTikTokWithSound || !soundOnlyForeground || isFinishing || isDestroyed ||
+            soundOnlyProbeActive || soundOnlyProbeStatus.value == SoundOnlyProbeStatus.FAILED
+        ) return
+        val pagerAdapter = adapter ?: return
+        val lead = if (ShadowboxPreviews.dataSavingMode(this, sharedPreferences)) 1 else 3
+        if (restorePostFullName == null &&
+            pagerAdapter.pageCount - binding.viewPager2ShadowboxActivity.currentItem > lead
+        ) return
+        val posts = viewModel.posts.orEmpty()
+        while (soundOnlyNextPostIndex < posts.size) {
+            val postIndex = soundOnlyNextPostIndex
+            val post = posts[postIndex]
+            if (!isPlayableClipCandidate(post)) {
+                soundOnlyNextPostIndex++
+                continue
+            }
+            val signature = soundOnlySourceSignature(post)
+            if (excludedSoundOnlyPosts[post.fullName] == signature) {
+                if (post.fullName == restorePostFullName) restorePostFullName = null
+                soundOnlyNextPostIndex++
+                continue
+            }
+            if (confirmedSoundOnlyPosts[post.fullName] == signature) {
+                if (post.fullName == restorePostFullName) {
+                    restorePostFullName = null
+                    movePagerToPageWhenReady(pagerAdapter.pageForPostIndex(postIndex))
+                }
+                soundOnlyNextPostIndex++
+                continue
+            }
+            val urls = soundOnlyUrls(post)
+            if (urls.isEmpty()) {
+                soundOnlyNextPostIndex++
+                continue
+            }
+            soundOnlyProbeActive = true
+            soundOnlyProbeStatus.value = SoundOnlyProbeStatus.LOADING
+            val generation = feedGeneration
+            val probe = soundOnlyProbe ?: ShadowboxSoundOnlyProbe(this, simpleCache, mediaClient)
+                .also { soundOnlyProbe = it }
+            probe.check(urls) { outcome ->
+                if (generation != feedGeneration || !soundOnlyForeground || isFinishing || isDestroyed) return@check
+                when (outcome) {
+                    ShadowboxSoundOnlyProbe.Result.AUDIBLE -> {
+                        // Keep the admission slot occupied until the posted pager update commits.
+                        confirmedSoundOnlyPosts[post.fullName] = signature
+                        soundOnlyNextPostIndex = postIndex + 1
+                        appendSoundOnlyPage(postIndex, generation)
+                    }
+                    ShadowboxSoundOnlyProbe.Result.SILENT -> {
+                        soundOnlyProbeActive = false
+                        excludedSoundOnlyPosts[post.fullName] = signature
+                        if (post.fullName == restorePostFullName) restorePostFullName = null
+                        soundOnlyNextPostIndex = postIndex + 1
+                        continueSoundOnlyAdmission()
+                    }
+                    ShadowboxSoundOnlyProbe.Result.FAILED -> {
+                        soundOnlyProbeActive = false
+                        // Keep this candidate at the head. The footer retries transient failures.
+                        soundOnlyProbeStatus.value = SoundOnlyProbeStatus.FAILED
+                    }
+                }
+            }
+            return
+        }
+        val state = viewModel.loadMorePostsState.value ?: return
+        if (state.hasMore && state.status != LoadingMorePostsStatus.LOADING &&
+            state.status != LoadingMorePostsStatus.FAILED
+        ) {
+            soundOnlyProbeStatus.value = SoundOnlyProbeStatus.LOADING
+            viewModel.loadNextFeedPage()
+        } else {
+            soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
+        }
+    }
+
+    /** Pager notifications run on its next turn, after RecyclerView has finished layout. */
+    private fun appendSoundOnlyPage(postIndex: Int, generation: Long) {
+        val pager = binding.viewPager2ShadowboxActivity
+        val recycler = pager.getChildAt(0) as RecyclerView
+        val append = object : Runnable {
+            override fun run() {
+                if (generation != feedGeneration || isFinishing || isDestroyed) return
+                if (recycler.isComputingLayout) {
+                    recycler.post(this)
+                    return
+                }
+                val pagerAdapter = adapter ?: return
+                val oldCount = pagerAdapter.pageCount
+                val wasOnEnd = pager.currentItem >= oldCount
+                val selectedPage = pager.currentItem
+                val selectedPostIndex = pagerAdapter.postIndexForPage(selectedPage)
+                val insertion = pagerAdapter.appendVerifiedPage(postIndex)
+                if (insertion != null) {
+                    val restoring = viewModel.posts?.getOrNull(postIndex)?.fullName == restorePostFullName
+                    if (restoring) restorePostFullName = null
+                    when {
+                        restoring -> movePagerToPageWhenReady(insertion)
+                        selectedPostIndex >= 0 && insertion <= selectedPage ->
+                            movePagerToPageWhenReady(pagerAdapter.pageForPostIndex(selectedPostIndex))
+                        wasOnEnd && insertion == oldCount -> movePagerToPageWhenReady(insertion)
+                        wasOnEnd -> movePagerToPageWhenReady(pagerAdapter.pageCount)
+                    }
+                }
+                soundOnlyProbeActive = false
+                soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
+                continueSoundOnlyAdmission()
+            }
+        }
+        recycler.post(append)
     }
 
     private fun firstPageAtOrAfterPostIndex(postIndex: Int): Int {
@@ -738,16 +878,24 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
 
     override fun onResume() {
         super.onResume()
+        soundOnlyForeground = true
         for (fragment in supportFragmentManager.fragments) {
             if (fragment is ShadowboxPageFragment) {
                 fragment.restoreMedia()
             }
         }
         schedulePagerPageInstancePruning()
+        continueSoundOnlyAdmission()
     }
 
     override fun onPause() {
         super.onPause()
+        soundOnlyForeground = false
+        soundOnlyProbe?.cancel()
+        soundOnlyProbeActive = false
+        if (soundOnlyProbeStatus.value == SoundOnlyProbeStatus.LOADING) {
+            soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
+        }
         // Leaving the screen -- the full viewer, the comments, anywhere -- silences the pages that
         // are not in front: the page in front remembers to resume on the way back; these have
         // nothing to come back to. Then every page lets go of its player, so the screen opening
@@ -761,6 +909,8 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
     }
 
     override fun onDestroy() {
+        soundOnlyProbe?.cancel()
+        soundOnlyProbe = null
         if (isFinishing && ::viewModel.isInitialized) {
             viewModel.stopFeedLoading()
         }
@@ -770,7 +920,6 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putStringArrayList(STATE_EXCLUDED_SOUND_ONLY_POST_IDS, ArrayList(excludedSoundOnlyPostIds))
         val selectedPostIndex = adapter?.postIndexForPage(binding.viewPager2ShadowboxActivity.currentItem) ?: -1
         viewModel.posts?.getOrNull(selectedPostIndex)?.fullName?.let {
             outState.putString(STATE_CURRENT_POST_FULL_NAME, it)
@@ -810,7 +959,6 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         const val EXTRA_FEED_READ_POST_TYPE = "EFRPT"
         const val EXTRA_FEED_MEDIA_ONLY = "EFMO"
         const val EXTRA_FEED_DISABLE_READ_POSTS = "EFDRP"
-        private const val STATE_EXCLUDED_SOUND_ONLY_POST_IDS = "ESSOPI"
         private const val STATE_CURRENT_POST_FULL_NAME = "SCPFN"
         private const val STATE_PLAYBACK_VOLUME = "SPV"
         private const val STATE_LAST_AUDIBLE_VOLUME = "SLAV"

@@ -990,6 +990,7 @@
     <string name="shadowbox_like_action">Upvote. Long press to downvote.</string>
     <string name="shadowbox_close">Back to feed</string>
     <string name="tiktok_load_more">Tap to load more posts</string>
+    <string name="tiktok_sound_probe_failed">Could not check this clip. Tap to retry or long-press to skip it.</string>
     <string name="subscribe_to_community">Subscribe to r/%1$s</string>
     <string name="add_community_to_multireddit">Add r/%1$s to a multireddit</string>
     <string name="create_multireddit_from_search">Create a multireddit with this community already selected.</string>

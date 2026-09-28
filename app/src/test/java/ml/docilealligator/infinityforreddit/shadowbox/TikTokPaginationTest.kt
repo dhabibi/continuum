@@ -62,6 +62,45 @@ class TikTokPaginationTest {
         controller.pause().stop().destroy()
     }
 
+    @Test fun `verified posts already in a source batch append in order without moving the visible page`() {
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val posts = arrayListOf(mock(Post::class.java), mock(Post::class.java), mock(Post::class.java))
+        val admitted = mutableSetOf(posts[0])
+        val adapter = ShadowboxPagerAdapter(controller.get(), model(posts), { false }, { it in admitted })
+        adapter.buildPages()
+        val firstId = adapter.getItemId(0)
+        val footerId = adapter.getItemId(1)
+
+        admitted.add(posts[1])
+        assertEquals(1, adapter.appendVerifiedPage(1))
+        assertEquals(firstId, adapter.getItemId(0))
+        assertFalse(adapter.containsItem(footerId))
+        assertEquals(1, adapter.postIndexForPage(1))
+        assertNull(adapter.appendVerifiedPage(1))
+
+        admitted.add(posts[2])
+        assertEquals(2, adapter.appendVerifiedPage(2))
+        assertEquals(listOf(0, 1, 2), (0 until adapter.pageCount).map(adapter::postIndexForPage))
+        controller.pause().stop().destroy()
+    }
+
+    @Test fun `a changed restored URL can be verified before later retained pages`() {
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val posts = arrayListOf(mock(Post::class.java), mock(Post::class.java), mock(Post::class.java))
+        // The first URL changed during rotation. Later posts still have valid retained decisions.
+        val admitted = mutableSetOf(posts[1], posts[2])
+        val adapter = ShadowboxPagerAdapter(controller.get(), model(posts), { false }, { it in admitted })
+        adapter.buildPages()
+        val selectedId = adapter.getItemId(1)
+        val selectedPostIndex = adapter.postIndexForPage(1)
+
+        admitted.add(posts[0])
+        assertEquals(0, adapter.appendVerifiedPage(0))
+        assertEquals(listOf(0, 1, 2), (0 until adapter.pageCount).map(adapter::postIndexForPage))
+        assertEquals(selectedId, adapter.getItemId(adapter.pageForPostIndex(selectedPostIndex)))
+        controller.pause().stop().destroy()
+    }
+
     @Test fun `excluding a silent post invalidates its fragment and keeps other stable IDs`() {
         val controller = Robolectric.buildActivity(FragmentActivity::class.java).setup()
         val silent = mock(Post::class.java)

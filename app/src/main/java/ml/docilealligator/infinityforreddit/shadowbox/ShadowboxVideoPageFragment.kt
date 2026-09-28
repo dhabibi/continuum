@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.shadowbox
 
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.text.format.DateUtils
@@ -101,7 +102,6 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     private var scrubbing = false
     private var audioAvailabilityReported = false
     private var soundOnlyPlaybackApproved = false
-    private var feedGenerationAtCreation = 0L
     private var videoTextureView: TextureView? = null
     private var videoZoomScale = 1f
     private var videoPanX = 0f
@@ -148,7 +148,6 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         super.onCreate(savedInstanceState)
         uri = Uri.parse(requireArguments().getString(ARG_URI) ?: "")
         isGifMp4 = requireArguments().getBoolean(ARG_IS_GIF_MP4, false)
-        feedGenerationAtCreation = host.feedGeneration
         if (host.playbackVolume == null) {
             volume = if (initialSessionMuteState()) 0f else 1f
             isMute = volume == 0f
@@ -331,11 +330,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
                 // too, say so -- a page left on its poster with a pause button up looked like a
                 // video that was playing.
                 if (!retryAtPostedQuality() && !retryAtFallbackUrl()) {
-                    if (host.isTikTokWithSound) {
-                        host.onSoundOnlyPostUnplayable(post, feedGenerationAtCreation)
-                    } else {
-                        showPlaybackError()
-                    }
+                    showPlaybackError()
                 }
             }
         }
@@ -589,18 +584,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
      * their own URLs straight through, so neither needs to be asked what kind this is.
      */
     private fun dataSavingPlaybackUri(source: Uri): Uri {
-        val afterRedgifs = RedgifsUrlUtils.playbackUri(
-            source, dataSavingMode,
-            SharedPreferencesUtils.getInt(
-                sharedPreferences, SharedPreferencesUtils.REDGIFS_VIDEO_DEFAULT_RESOLUTION, "480"
-            )
-        )
-        return MlbUrlUtils.playbackUri(
-            afterRedgifs, dataSavingMode,
-            SharedPreferencesUtils.getInt(
-                sharedPreferences, SharedPreferencesUtils.MLB_VIDEO_DEFAULT_BITRATE, "4000"
-            )
-        ) ?: source
+        return playbackUriFor(source, dataSavingMode, sharedPreferences)
     }
 
     /** Explicit mute settings seed the session; its volume controls carry across video pages. */
@@ -832,25 +816,16 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
         if (readyPlayer.playbackState != Player.STATE_READY) return
         val tracks = readyPlayer.currentTracks
         audioAvailabilityReported = true
-        if (!hasSupportedTrack(tracks, C.TRACK_TYPE_VIDEO)) {
-            host.onSoundOnlyPostUnplayable(post, feedGenerationAtCreation)
-            return
-        }
-
-        val hasAudioTrack = tracks.groups.any { group ->
-            group.type == C.TRACK_TYPE_AUDIO && group.length > 0
-        }
-        if (!hasSupportedTrack(tracks, C.TRACK_TYPE_AUDIO)) {
-            if (hasAudioTrack) {
-                host.onSoundOnlyPostUnplayable(post, feedGenerationAtCreation)
-            } else {
-                host.onSoundOnlyAudioAvailability(post, false, feedGenerationAtCreation)
-            }
+        if (!hasSupportedTrack(tracks, C.TRACK_TYPE_VIDEO) ||
+            !hasSupportedTrack(tracks, C.TRACK_TYPE_AUDIO)
+        ) {
+            // An offscreen metadata result can differ from this player's selected URL or device
+            // decoders. Try its existing URL fallbacks, then leave a retryable error on this page.
+            if (!retryAtPostedQuality() && !retryAtFallbackUrl()) showPlaybackError()
             return
         }
 
         soundOnlyPlaybackApproved = true
-        host.onSoundOnlyAudioAvailability(post, true, feedGenerationAtCreation)
         applyPlayback()
     }
 
@@ -968,6 +943,26 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             .setTargetBufferBytes(VIDEO_BUFFER_BYTES)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
+
+        /** The same Redgifs/MLB URL choice used by playback, also used for audio verification. */
+        internal fun playbackUriFor(
+            source: Uri,
+            dataSavingMode: Boolean,
+            sharedPreferences: SharedPreferences,
+        ): Uri {
+            val afterRedgifs = RedgifsUrlUtils.playbackUri(
+                source, dataSavingMode,
+                SharedPreferencesUtils.getInt(
+                    sharedPreferences, SharedPreferencesUtils.REDGIFS_VIDEO_DEFAULT_RESOLUTION, "480"
+                )
+            )
+            return MlbUrlUtils.playbackUri(
+                afterRedgifs, dataSavingMode,
+                SharedPreferencesUtils.getInt(
+                    sharedPreferences, SharedPreferencesUtils.MLB_VIDEO_DEFAULT_BITRATE, "4000"
+                )
+            ) ?: source
+        }
 
         fun newInstance(position: Int, blur: Boolean, uri: String, isGifMp4: Boolean): ShadowboxVideoPageFragment {
             val fragment = ShadowboxVideoPageFragment()

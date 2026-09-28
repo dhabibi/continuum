@@ -109,6 +109,24 @@ class ShadowboxPagerAdapter(
         return added
     }
 
+    /** Admit a verified post already in the source list; a changed URL may be rechecked late. */
+    fun appendVerifiedPage(postIndex: Int): Int? {
+        val post = posts().getOrNull(postIndex) ?: return null
+        if (!showPost(post) || pages.contains(postIndex)) return null
+        val oldSize = pages.size
+        val insertion = pages.indexOfFirst { it > postIndex }.let { if (it < 0) oldSize else it }
+        pages.add(insertion, postIndex)
+        indexedPostCount = posts().size
+        if (insertion == oldSize) {
+            notifyItemChanged(oldSize)
+            notifyItemInserted(oldSize + 1)
+        } else {
+            notifyItemInserted(insertion)
+            notifyItemChanged(pages.size)
+        }
+        return insertion
+    }
+
     /** The post index a page shows, or -1 for the end page. */
     fun postIndexForPage(page: Int): Int = pages.getOrElse(page) { -1 }
 

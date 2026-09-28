@@ -29,17 +29,24 @@ class ShadowboxEndPageFragment : Fragment() {
             // Retry a failed or idle load; the model refuses while loading or when done.
             activity.fetchMorePosts()
         }
+        binding.root.setOnLongClickListener { activity.skipFailedSoundOnlyClip() }
         // The activity's own instance: asking ViewModelProvider for it without the factory it was
         // created with would try to construct one, and this model has no no-arg constructor.
         activity.viewModel.loadMorePostsState.observe(viewLifecycleOwner) { state -> render(state) }
+        activity.soundOnlyProbeStatus.observe(viewLifecycleOwner) {
+            activity.viewModel.loadMorePostsState.value?.let(::render)
+        }
         return binding.root
     }
 
     private fun render(state: ViewPostDetailActivityViewModel.LoadMorePostsState) {
         val binding = _binding ?: return
         val activity = requireActivity() as ShadowboxActivity
+        val probeStatus = activity.soundOnlyProbeStatus.value
         binding.progressBarShadowboxEndPageFragment.visibility =
-            if (state.status == LoadingMorePostsStatus.LOADING) View.VISIBLE else View.INVISIBLE
+            if (state.status == LoadingMorePostsStatus.LOADING ||
+                probeStatus == ShadowboxActivity.SoundOnlyProbeStatus.LOADING
+            ) View.VISIBLE else View.INVISIBLE
         val message = when {
             state.emptySource -> {
                 if (activity.viewModel.currentFeedRequest?.postType == PostType.ANONYMOUS_MULTIREDDIT) {
@@ -48,6 +55,8 @@ class ShadowboxEndPageFragment : Fragment() {
                     R.string.anonymous_front_page_no_subscriptions
                 }
             }
+            probeStatus == ShadowboxActivity.SoundOnlyProbeStatus.LOADING -> R.string.loading
+            probeStatus == ShadowboxActivity.SoundOnlyProbeStatus.FAILED -> R.string.tiktok_sound_probe_failed
             state.status == LoadingMorePostsStatus.LOADING -> R.string.loading
             state.status == LoadingMorePostsStatus.FAILED -> R.string.load_more_posts_failed
             state.status == LoadingMorePostsStatus.NO_MORE_POSTS ||

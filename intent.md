@@ -101,3 +101,10 @@ independent feeds rather than overlays on regular-feed posts, directly available
 in the sidebar with Home, multireddit, and subreddit source selection. Preserve
 profile isolation, privacy/data-saving settings, original media quality, playback
 controls, and the existing signed APK update path.
+
+On September 28 Daniel reports continued TikTok crashes, possibly on pagination,
+and Home crashing when autoplay begins. Fix both player/feed lifecycles and keep
+infinite scrolling usable. Sound-only TikTok must check clips before displaying
+them; silently loading then visibly skipping videos without audio does not meet
+the intended behavior. Preserve the existing source choices, profile data, media
+controls and signed update delivery.
