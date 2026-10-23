@@ -780,7 +780,11 @@ public class ParsePost {
                     JSONObject galleryObject = data.getJSONObject(JSONUtils.MEDIA_METADATA_KEY);
                     ArrayList<Post.Gallery> gallery = new ArrayList<>();
                     for (int i = 0; i < galleryIdsArray.length(); i++) {
-                        String galleryId = galleryIdsArray.getJSONObject(i).getString(JSONUtils.MEDIA_ID_KEY);
+                        JSONObject galleryItem = galleryIdsArray.optJSONObject(i);
+                        if (galleryItem == null) {
+                            continue;
+                        }
+                        String galleryId = galleryItem.optString(JSONUtils.MEDIA_ID_KEY);
                         // A deleted image keeps its `gallery_data` entry but loses its
                         // `media_metadata` one. getJSONObject would throw on the first such item and
                         // the catch below would discard the whole list, so a gallery that lost one
@@ -801,36 +805,43 @@ public class ParsePost {
                         if (mimeType.isEmpty() || sourceObject == null) {
                             continue;
                         }
+                        // Match Post.Gallery's image classification, including image/jpeg.
+                        boolean isStillImage = mimeType.startsWith("image/") && !mimeType.contains("gif");
                         String galleryItemUrl;
-                        if (mimeType.contains("jpg") || mimeType.contains("png")) {
-                            galleryItemUrl = sourceObject.getString(JSONUtils.U_KEY);
+                        if (isStillImage) {
+                            galleryItemUrl = sourceObject.optString(JSONUtils.U_KEY);
                         } else if (mimeType.contains("gif")) {
-                            galleryItemUrl = sourceObject.getString(JSONUtils.GIF_KEY);
+                            galleryItemUrl = sourceObject.optString(JSONUtils.GIF_KEY);
                         } else {
-                            galleryItemUrl = sourceObject.getString(JSONUtils.MP4_KEY);
+                            galleryItemUrl = sourceObject.optString(JSONUtils.MP4_KEY);
+                        }
+                        // An incomplete item must not discard the rest of the gallery.
+                        if (TextUtils.isEmpty(galleryItemUrl)) {
+                            continue;
                         }
 
-                        JSONObject galleryItem = galleryIdsArray.getJSONObject(i);
                         String galleryItemCaption = "";
                         String galleryItemCaptionUrl = "";
                         if (galleryItem.has(JSONUtils.CAPTION_KEY)) {
-                            galleryItemCaption = galleryItem.getString(JSONUtils.CAPTION_KEY).trim();
+                            galleryItemCaption = galleryItem.optString(JSONUtils.CAPTION_KEY).trim();
                         }
 
                         if (galleryItem.has(JSONUtils.CAPTION_URL_KEY)) {
-                            galleryItemCaptionUrl = galleryItem.getString(JSONUtils.CAPTION_URL_KEY).trim();
+                            galleryItemCaptionUrl = galleryItem.optString(JSONUtils.CAPTION_URL_KEY).trim();
                         }
 
-                        if (previews.isEmpty() && (mimeType.contains("jpg") || mimeType.contains("png"))) {
-                            previews.add(new Post.Preview(galleryItemUrl, sourceObject.getInt(JSONUtils.X_KEY),
-                                    sourceObject.getInt(JSONUtils.Y_KEY), galleryItemCaption, galleryItemCaptionUrl));
+                        int sourceWidth = sourceObject.optInt(JSONUtils.X_KEY);
+                        int sourceHeight = sourceObject.optInt(JSONUtils.Y_KEY);
+                        if (previews.isEmpty() && isStillImage && sourceWidth > 0 && sourceHeight > 0) {
+                            previews.add(new Post.Preview(galleryItemUrl, sourceWidth,
+                                    sourceHeight, galleryItemCaption, galleryItemCaptionUrl));
                         }
 
                         Post.Gallery postGalleryItem = new Post.Gallery(mimeType, galleryItemUrl, "", subredditName + "-" + galleryId + "." + mimeType.substring(mimeType.lastIndexOf("/") + 1), galleryItemCaption, galleryItemCaptionUrl);
 
                         // For issue #558
                         // Construct a fallback image url
-                        if (!TextUtils.isEmpty(galleryItemUrl) && !TextUtils.isEmpty(mimeType) && (mimeType.contains("jpg") || mimeType.contains("png"))) {
+                        if (isStillImage) {
                             postGalleryItem.setFallbackUrl("https://i.redd.it/" + galleryId + "." +  mimeType.substring(mimeType.lastIndexOf("/") + 1));
                             postGalleryItem.setHasFallback(true);
                         }
@@ -843,18 +854,20 @@ public class ParsePost {
                         // autoplay picks that tile — only then is the source (often tens of MB)
                         // loaded, for that one tile. The full-screen media view is unaffected: it
                         // always loads `url` (the source) directly, never feedPreviewUrl.
-                        if (singleGalleryObject.has(JSONUtils.P_KEY)) {
-                            JSONArray previewsArray = singleGalleryObject.getJSONArray(JSONUtils.P_KEY);
+                        JSONArray previewsArray = singleGalleryObject.optJSONArray(JSONUtils.P_KEY);
+                        if (previewsArray != null) {
                             String bestPreviewUrl = null;
                             int bestPreviewWidth = -1;
                             for (int p = 0; p < previewsArray.length(); p++) {
-                                JSONObject previewObject = previewsArray.getJSONObject(p);
-                                if (previewObject.has(JSONUtils.U_KEY) && previewObject.has(JSONUtils.X_KEY)) {
-                                    int previewWidth = previewObject.getInt(JSONUtils.X_KEY);
-                                    if (previewWidth > bestPreviewWidth) {
-                                        bestPreviewWidth = previewWidth;
-                                        bestPreviewUrl = previewObject.getString(JSONUtils.U_KEY);
-                                    }
+                                JSONObject previewObject = previewsArray.optJSONObject(p);
+                                if (previewObject == null) {
+                                    continue;
+                                }
+                                int previewWidth = previewObject.optInt(JSONUtils.X_KEY);
+                                String previewUrl = previewObject.optString(JSONUtils.U_KEY);
+                                if (previewWidth > 0 && previewWidth > bestPreviewWidth && !TextUtils.isEmpty(previewUrl)) {
+                                    bestPreviewWidth = previewWidth;
+                                    bestPreviewUrl = previewUrl;
                                 }
                             }
                             postGalleryItem.feedPreviewUrl = bestPreviewUrl;
