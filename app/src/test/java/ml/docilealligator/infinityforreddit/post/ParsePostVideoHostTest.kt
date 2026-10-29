@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.post
 
+import com.google.gson.Gson
 import ml.docilealligator.infinityforreddit.TestInfinity
 import ml.docilealligator.infinityforreddit.utils.ShortClipHostUtils
 import org.json.JSONArray
@@ -252,14 +253,110 @@ class ParsePostVideoHostTest {
         }
     }
 
-    @Test fun `reddit video preview flag distinguishes animation from ordinary video`() {
-        for (animated in listOf(false, true)) {
-            val preview = previewBlock().put("reddit_video_preview", JSONObject()
-                .put("is_gif", animated).put("hls_url", "https://v.redd.it/preview/HLSPlaylist.m3u8")
-                .put("fallback_url", "https://v.redd.it/preview/DASH_720.mp4"))
-            val post = ParsePost.parseBasicData(postJson("https://example.com/clip", "example.com", preview))
-            assertEquals(Post.VIDEO_TYPE, post.postType)
-            assertEquals(animated, post.isAnimatedVideo)
+    private fun videoPreview(animated: Boolean = true) = previewBlock().put("reddit_video_preview", JSONObject()
+        .put("is_gif", animated).put("hls_url", "https://v.redd.it/preview/HLSPlaylist.m3u8")
+        .put("fallback_url", "https://v.redd.it/preview/DASH_720.mp4"))
+
+    @Test fun `animated preview does not make an external video a GIF`() {
+        for ((url, domain) in listOf(
+            "https://streamable.com/abc123" to "streamable.com",
+            "https://www.redgifs.com/watch/animatedexample" to "redgifs.com",
+            "https://streamin.link/v/dfc4c91e" to "streamin.link",
+            "https://example.com/clip" to "example.com",
+            "https://example.com/clip.mp4" to "example.com",
+            "https://i.imgur.com/clip.mp4" to "i.imgur.com"
+        )) {
+            val ordinaryData = postJson(url, domain, videoPreview(false))
+            val previewData = postJson(url, domain, videoPreview())
+            if (domain == "redgifs.com") {
+                for (data in listOf(ordinaryData, previewData)) {
+                    data.put("media", JSONObject().put("oembed", JSONObject()
+                        .put("thumbnail_url", "https://thumbs.redgifs.com/animatedexample-mobile.jpg")))
+                }
+            }
+            val ordinary = ParsePost.parseBasicData(ordinaryData)
+            val gifPreview = ParsePost.parseBasicData(previewData)
+            assertEquals(Post.VIDEO_TYPE, gifPreview.postType)
+            assertFalse(url, gifPreview.isAnimatedVideo)
+            assertNull(gifPreview.mp4Variant)
+            assertEquals(ordinary.videoUrl, gifPreview.videoUrl)
+            assertEquals(ordinary.videoDownloadUrl, gifPreview.videoDownloadUrl)
+            assertEquals(ordinary.url, gifPreview.url)
+            assertEquals(ordinary, gifPreview)
+            if (domain == "redgifs.com") {
+                assertTrue(gifPreview.isRedgifs)
+                assertEquals("https://media.redgifs.com/animatedexample.mp4", gifPreview.videoUrl)
+            }
         }
+        val streamable = ParsePost.parseBasicData(postJson("https://streamable.com/abc123", "streamable.com", videoPreview()))
+        assertTrue(streamable.isStreamable)
+        assertEquals("https://streamable.com/abc123", streamable.videoUrl)
+    }
+
+    @Test fun `explicit GIF and GIFV sources retain animated video classification`() {
+        for ((url, domain) in listOf(
+            "https://example.com/animation.gif?download=1" to "example.com",
+            "https://i.imgur.com/animation.gifv" to "i.imgur.com"
+        )) {
+            // The source itself declares animation, even when the preview lacks the flag.
+            val post = ParsePost.parseBasicData(postJson(url, domain, videoPreview(false)))
+            assertEquals(Post.VIDEO_TYPE, post.postType)
+            assertTrue(url, post.isAnimatedVideo)
+            assertEquals(post.videoDownloadUrl, post.mp4Variant)
+        }
+        val imgur = ParsePost.parseBasicData(postJson("https://i.imgur.com/animation.gifv", "i.imgur.com", previewBlock()))
+        assertTrue(imgur.isAnimatedVideo)
+        assertEquals("https://i.imgur.com/animation.mp4", imgur.videoUrl)
+        assertEquals(imgur.videoDownloadUrl, imgur.mp4Variant)
+    }
+
+    @Test fun `native ordinary video ignores animated preview metadata`() {
+        val data = postJson("https://v.redd.it/ordinary", "v.redd.it", videoPreview())
+            .put("is_video", true).put("media", JSONObject().put("reddit_video", JSONObject()
+                .put("is_gif", false).put("hls_url", "https://v.redd.it/ordinary/HLSPlaylist.m3u8")
+                .put("fallback_url", "https://v.redd.it/ordinary/DASH_720.mp4")))
+        val post = ParsePost.parseBasicData(data)
+        assertEquals(Post.VIDEO_TYPE, post.postType)
+        assertFalse(post.isAnimatedVideo)
+        assertNull(post.mp4Variant)
+        assertEquals("https://v.redd.it/ordinary/DASH_720.mp4", post.videoDownloadUrl)
+    }
+
+    @Test fun `legacy cached GIF flag needs verified rendition and fresh metadata rebinds`() {
+        val fresh = ParsePost.parseBasicData(postJson("https://example.com/animation.gif", "example.com", videoPreview()))
+        val gson = Gson()
+        // FeedCache persists fields through Gson. v15 wrote the flag without mp4Variant.
+        val legacyJson = gson.toJsonTree(fresh).asJsonObject.apply { remove("mp4Variant") }
+        assertTrue(legacyJson.get("animatedVideo").asBoolean)
+        val legacy = gson.fromJson(legacyJson, Post::class.java)
+        assertFalse(legacy.isAnimatedVideo)
+        assertFalse(Post(legacy).isAnimatedVideo)
+        val unmarked = Post(legacy).apply { setAnimatedVideo(false) }
+        assertEquals(unmarked, legacy)
+        assertEquals(unmarked.hashCode(), legacy.hashCode())
+        assertFalse("Fresh verified metadata must rebind the cached row", fresh == legacy)
+        val restored = gson.fromJson(gson.toJson(fresh), Post::class.java)
+        assertTrue(restored.isAnimatedVideo)
+        assertEquals(fresh, restored)
+        assertEquals(fresh.hashCode(), restored.hashCode())
+        val parcel = android.os.Parcel.obtain()
+        try {
+            legacy.writeToParcel(parcel, 0)
+            parcel.setDataPosition(0)
+            assertFalse(Post.CREATOR.createFromParcel(parcel).isAnimatedVideo)
+        } finally { parcel.recycle() }
+    }
+
+    @Test fun `raw GIF keeps original URL and supplied MP4 rendition`() {
+        val preview = previewBlock()
+        preview.getJSONArray("images").getJSONObject(0).put("variants", JSONObject().put("mp4", JSONObject()
+            .put("source", JSONObject().put("url", "https://preview.redd.it/animation.gif?format=mp4"))))
+        val url = "https://i.redd.it/animation.gif"
+        val post = ParsePost.parseBasicData(postJson(url, "i.redd.it", preview))
+        assertEquals(Post.GIF_TYPE, post.postType)
+        assertEquals(url, post.url)
+        assertEquals(url, post.videoUrl)
+        assertEquals("https://preview.redd.it/animation.gif?format=mp4", post.mp4Variant)
+        assertFalse(post.isAnimatedVideo)
     }
 }

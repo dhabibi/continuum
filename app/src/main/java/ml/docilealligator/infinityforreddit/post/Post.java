@@ -1182,11 +1182,19 @@ public class Post implements Parcelable {
 
     /** Reddit delivers some GIF animations as video; retain video viewing/download semantics. */
     public boolean isAnimatedVideo() {
-        return animatedVideo;
+        // v15 cached preview-derived flags without a verified animated rendition. Those records
+        // must obey video autoplay until fresh source metadata supplies the rendition marker.
+        return animatedVideo && mp4Variant != null && !mp4Variant.isEmpty();
     }
 
     public void setAnimatedVideo(boolean animatedVideo) {
         this.animatedVideo = animatedVideo;
+        if (postType == VIDEO_TYPE) {
+            mp4Variant = animatedVideo
+                    ? (videoDownloadUrl != null && !videoDownloadUrl.isEmpty()
+                            ? videoDownloadUrl : videoFallBackDirectUrl)
+                    : null;
+        }
     }
 
     @Nullable
@@ -1204,7 +1212,7 @@ public class Post implements Parcelable {
             return false;
         }
         return ((Post) obj).id.equals(id)
-                && animatedVideo == ((Post) obj).animatedVideo
+                && isAnimatedVideo() == ((Post) obj).isAnimatedVideo()
                 && nsfw == ((Post) obj).nsfw
                 && spoiler == ((Post) obj).spoiler
                 && isRead == ((Post) obj).isRead
@@ -1227,7 +1235,7 @@ public class Post implements Parcelable {
         return Objects.hash(
                 id, nsfw, spoiler, isRead, saved, hidden, voteType,
                 stickied, approved, approvedAtUTC, approvedBy, removed,
-                spam, locked, distinguished, animatedVideo
+                spam, locked, distinguished, isAnimatedVideo()
         );
     }
 

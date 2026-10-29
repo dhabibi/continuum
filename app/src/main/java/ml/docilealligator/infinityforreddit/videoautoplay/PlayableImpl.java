@@ -262,6 +262,11 @@ class PlayableImpl implements Playable {
     }
 
     @Override
+    public boolean isBuffering() {
+        return player != null && player.getPlayer().getPlaybackState() == Player.STATE_BUFFERING;
+    }
+
+    @Override
     public void addErrorListener(@NonNull ToroPlayer.OnErrorListener listener) {
         this.errorListeners.add(checkNotNull(listener));
     }

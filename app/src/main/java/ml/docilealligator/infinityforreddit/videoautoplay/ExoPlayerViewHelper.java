@@ -137,6 +137,10 @@ public class ExoPlayerViewHelper extends ToroPlayerHelper {
         return playable.isEnded();
     }
 
+    public boolean isBuffering() {
+        return playable.isBuffering();
+    }
+
     @Override
     public void setVolume(float volume) {
         playable.setVolume(volume);

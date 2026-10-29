@@ -772,13 +772,6 @@ public class ParsePost {
         }
 
         if (post.getPostType() == Post.VIDEO_TYPE) {
-            JSONObject videoMedia = data.optJSONObject(JSONUtils.MEDIA_KEY);
-            JSONObject redditVideo = videoMedia == null ? null : videoMedia.optJSONObject(JSONUtils.REDDIT_VIDEO_KEY);
-            JSONObject videoPreview = data.optJSONObject(JSONUtils.PREVIEW_KEY);
-            if (redditVideo == null && videoPreview != null) {
-                redditVideo = videoPreview.optJSONObject(JSONUtils.REDDIT_VIDEO_PREVIEW_KEY);
-            }
-            post.setAnimatedVideo(redditVideo != null && redditVideo.optBoolean("is_gif", false));
             applyExternalVideoHost(post, data, url, uri, path, false);
         } else if (post.getPostType() == Post.LINK_TYPE || post.getPostType() == Post.NO_PREVIEW_LINK_TYPE) {
             if (!data.isNull(JSONUtils.GALLERY_DATA_KEY)) {
@@ -945,6 +938,16 @@ public class ParsePost {
                     applyExternalImageHost(post, uri, url);
                 }
             }
+        }
+
+        if (post.getPostType() == Post.VIDEO_TYPE) {
+            // Classify the final source after host promotion. A Reddit GIF preview can advertise
+            // an ordinary video, so only native media metadata or the original GIF path qualifies.
+            JSONObject videoMedia = data.optJSONObject(JSONUtils.MEDIA_KEY);
+            JSONObject redditVideo = videoMedia == null ? null : videoMedia.optJSONObject(JSONUtils.REDDIT_VIDEO_KEY);
+            boolean nativeGif = isVideo && post.isNormalVideo() && redditVideo != null
+                    && redditVideo.optBoolean("is_gif", false);
+            post.setAnimatedVideo(nativeGif || path.endsWith(".gif") || path.endsWith(".gifv"));
         }
 
         if (post.getPostType() != Post.LINK_TYPE && post.getPostType() != Post.NO_PREVIEW_LINK_TYPE) {

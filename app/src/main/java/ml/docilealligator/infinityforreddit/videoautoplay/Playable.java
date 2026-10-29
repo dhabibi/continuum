@@ -167,6 +167,9 @@ public interface Playable {
      */
     boolean isEnded();
 
+    /** Safe before lazy player allocation and after release. */
+    boolean isBuffering();
+
     /**
      * Change the volume of current playback.
      *

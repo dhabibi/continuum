@@ -1,6 +1,7 @@
 # Current state
 
-October 29, 2026: v15 is published at the existing private APK endpoint.
+October 29, 2026: v16 hotfix (versionCode 245) is verified locally; signed publication pending.
+Latest published APK is v15.
 APK/source commit: 69d3cf164df35fe167428e630daf24ed059453a3.
 Signed CI: https://github.com/dhabibi/continuum/actions/runs/40959080393 (passed).
 Package org.cygnusx1.continuum.proxy; 8.3.1.8-vps.15-debug; versionCode 244.
@@ -9,22 +10,24 @@ Private links/hashes: ../outputs/continuum/INSTALL-v15.txt and SHA256SUMS-v15.tx
 Install over the existing app with Tailscale connected. Refresh existing feeds once
 so cached posts gain the new GIF metadata; no uninstall or settings reset.
 
-## Verified GIF repair
+## v16 hotfix verification
 
-The feed includes gallery GIF players in its shared playback budget and refreshes
-selection after layout/focus changes. Reddit is_gif video metadata is retained;
-those animations follow GIF autoplay while ordinary-video preferences remain intact.
-Streaming galleries now have one preview owner. Video dimensions govern fit/zoom;
-late stills cannot overwrite them. Pinch/pan no longer trigger toolbar clicks.
-Original downloads, GIF fallback, Data Saving/blur gates and profile data remain.
+Daniel reported v15 crashing seconds after opening and possible unwanted video autoplay.
+Reproduced v15 on Android 16: preloading called ExoPlayerViewHelper.getPlayer before
+lazy player allocation, throwing in VideoAutoplayImpl.isBuffering. Buffering queries
+now use a lifecycle-safe predicate, including before play and after release.
+Unbound video rows also remain ineligible without dereferencing a missing post.
 
-113 release regressions passed. Android 16 testing covered cached gallery previews,
-correct aspect ratio, actual pinch without toolbar toggles, preload and lifecycle.
-A real r/gifs feed animated without scrolling: 148,618 of 292,500 sampled interior
-pixels changed. Cold-cache adjacent preloading read 1,048,674 bytes.
-Both signed APKs passed package/version/certificate/ZIP, remote full-hash, and
-HTTPS range/type/size/byte checks. Evidence: .scratch/v15-verification/.
-Physical phone verification remains pending.
+GIF preview metadata no longer marks a full external video as an animation.
+Only native GIF metadata or an explicit original GIF/GIFV source qualifies, and
+cached v15 flags require a verified rendition marker before overriding video autoplay.
+No cache deletion, preference reset or new Parcel format was introduced.
+
+118 release regressions passed. The same mixed-video feed survived startup, scroll,
+background and resume with autoplay enabled. A fresh launch with Video autoplay Never
+remained alive and showed ordinary VIDEO posts without autoplay player/control nodes.
+V15 gallery geometry, gestures and raw-GIF playback repairs remain unchanged.
+Physical phone confirmation is pending. Evidence: .scratch/v16-verification/.
 
 ## Android CLI setup
 
@@ -38,7 +41,8 @@ Android Studio is not installed and was not required. No setup intervention rema
 
 ## Return point
 
-Daniel installs v15 and checks feed/gallery behavior on the phone.
+Next: verify signed v16 CI artifacts, publish the private APK, fast-forward main,
+then collect phone startup/autoplay results.
 VPS services/routing were unchanged; no server restart. Comments remain excluded.
 Prior phone crash reports and arbitrary WebRTC UDP enforcement are not claimed fixed.
 The canonical intent.md owner draft and .serena/ remain preserved and uncommitted.

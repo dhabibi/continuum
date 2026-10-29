@@ -2113,7 +2113,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     }
 
     /** Reddit's animated video renditions retain video routing but follow the GIF preference. */
-    private boolean shouldAutoplayVideo(Post post) {
+    private boolean shouldAutoplayVideo(@Nullable Post post) {
+        if (post == null) return false;
         boolean enabled = post.isAnimatedVideo()
                 ? mGifAutoplay && !mDataSavingMode && !shouldBlurPreview(post)
                 : mAutoplay;
@@ -4878,8 +4879,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         }
 
         boolean isBuffering() {
-            Player player = helper == null ? null : helper.getPlayer();
-            return player != null && player.getPlaybackState() == Player.STATE_BUFFERING;
+            return helper != null && helper.isBuffering();
         }
 
         void loadFallbackDirectVideo() {
@@ -5174,7 +5174,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (helper != null && helper.isEnded()) {
                 return false;
             }
-            return canPlayVideo && shouldAutoplayVideo(getPost()) && mediaUri != null
+            return canPlayVideo && mediaUri != null && shouldAutoplayVideo(getPost())
                     && ToroUtil.visibleAreaOffset(this, itemView.getParent()) >= mStartAutoplayVisibleAreaOffset;
         }
 

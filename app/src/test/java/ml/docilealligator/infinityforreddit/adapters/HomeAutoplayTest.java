@@ -74,6 +74,8 @@ public class HomeAutoplayTest {
         try {
             row.loadVideo();
             row.initialize(new Container(context), new PlaybackInfo());
+            // The preloader asks this after initialize but before play allocates the player.
+            org.junit.Assert.assertFalse(row.isBuffering());
             row.play();
             for (int i = 0; i < 100 && row.helper.getPlayer().getPlaybackState() != Player.STATE_READY; i++) {
                 Thread.sleep(10);
@@ -92,9 +94,31 @@ public class HomeAutoplayTest {
             row.play();
             assertEquals(Player.REPEAT_MODE_OFF, row.helper.getPlayer().getRepeatMode());
         } finally {
+            ml.docilealligator.infinityforreddit.videoautoplay.ExoPlayerViewHelper retained = row.helper;
             row.release();
+            org.junit.Assert.assertFalse(row.isBuffering());
+            if (retained != null) org.junit.Assert.assertFalse(retained.isBuffering());
             ToroExo.with(app).cleanUp();
         }
+    }
+
+    @Test
+    public void unboundVideoRowCannotEnterAutoplaySelection() throws Exception {
+        Context app = ApplicationProvider.getApplicationContext();
+        Context context = new ContextThemeWrapper(app, R.style.AppTheme);
+        PostRecyclerViewAdapter adapter = mock(PostRecyclerViewAdapter.class);
+        setField(adapter, "canPlayVideo", true);
+        PostRecyclerViewAdapter.VideoAutoplayImpl row = adapter.new VideoAutoplayImpl(
+                new View(context), new MaxHeightSquareFrameLayout(context),
+                new AspectRatioFrameLayout(context), new GifImageView(context),
+                new ImageView(context), new PlayerView(context), new ImageView(context), new ImageView(context),
+                new ImageView(context), new ImageView(context), new DefaultTimeBar(context), null, null) {
+            @Override int getAdapterPosition() { return -1; }
+            @Override Post getPost() { return null; }
+            @Override void markPostRead(Post p, boolean changeColor) { }
+            @Override public int getPlayerOrder() { return -1; }
+        };
+        org.junit.Assert.assertFalse("Unbound rows are not playable", row.wantsToPlay());
     }
 
     private static void setField(Object instance, String name, Object value) throws Exception {
