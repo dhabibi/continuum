@@ -78,3 +78,23 @@ Reddit's upstream response time still contributes to overall loading time.
 App changes are based on Daniel's supplied patch. The runtime uses the supplied
 proxy design, with client lifecycle cleanup, deduplicated token refresh, strict
 media redirect validation and correct raw-response encoding added for deployment.
+
+## Automatic feed-session recovery
+
+For safe feed reads, a network-security HTML 403 that survives token refresh
+triggers one fresh upstream HTTP session and authentication attempt, then one
+retry. Concurrent failures share recovery, and a 60-second cooldown bounds reset
+attempts, including failed attempts. In-flight requests retain their original
+session until they finish; media streaming uses a separate client.
+Comments-only refusals, rate limits, and write requests do not trigger recovery.
+No request URLs, feed contents, tokens, or cookies are logged by recovery.
+
+`REDDIT_TLS_IMPERSONATE` selects a curl-cffi browser profile. The default remains
+`chrome_android`, which passed live token/feed checks with curl-cffi 0.16.3.
+The newer `chrome145` and `firefox147` profiles used by current Redlib returned
+feed 403s in the same environment on October 29, 2026, so they are not defaults.
+Use complete supported TLS/HTTP profiles rather than hand-editing cipher lists.
+The curl-cffi version is pinned to the version used for deployment verification.
+
+References: https://github.com/redlib-org/redlib/pull/544 and
+https://curl-cffi.readthedocs.io/en/latest/impersonate/_index.html.

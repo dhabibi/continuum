@@ -9,6 +9,8 @@ import re
 import time
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -25,6 +27,8 @@ PUBLIC_BASE = os.environ["PUBLIC_BASE"].rstrip("/")
 APP_VERSION = os.getenv("REDDIT_APP_VERSION", "Version 2024.47.0/Build 2029755")
 ANDROID_VERSION = os.getenv("ANDROID_VERSION", "14")
 UPSTREAM_PROXY = os.getenv("UPSTREAM_PROXY") or None
+REDDIT_TLS_IMPERSONATE = os.getenv("REDDIT_TLS_IMPERSONATE", "chrome_android")
+SESSION_RECOVERY_COOLDOWN = 60
 DEVICE_ID = os.getenv("DEVICE_ID", str(uuid.uuid4()))
 USER_AGENT = f"Reddit/{APP_VERSION}/Android {ANDROID_VERSION}"
 LOGGER = logging.getLogger("reddit_proxy")
@@ -51,10 +55,7 @@ def is_reddit_media_host(host: str) -> bool:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.reddit = AsyncSession(
-        impersonate="chrome_android", default_headers=False,
-        proxy=UPSTREAM_PROXY, timeout=30,
-    )
+    app.state.reddit = RedditSessions()
     app.state.media = httpx.AsyncClient(
         proxy=UPSTREAM_PROXY, follow_redirects=False,
         timeout=httpx.Timeout(connect=20, read=90, write=30, pool=30),
@@ -62,15 +63,13 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        await app.state.reddit.close()
-        await app.state.media.aclose()
+        try:
+            await app.state.reddit.close()
+        finally:
+            await app.state.media.aclose()
 
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
-_token = ""
-_token_expiry = 0.0
-_extra_headers: dict[str, str] = {}
-_token_lock = asyncio.Lock()
 
 
 def device_headers() -> dict[str, str]:
@@ -86,38 +85,206 @@ def device_headers() -> dict[str, str]:
     }
 
 
-async def refresh_token() -> str:
-    global _token, _token_expiry, _extra_headers
-    basic = base64.b64encode(f"{REDDIT_ANDROID_OAUTH_CLIENT_ID}:".encode()).decode()
-    response = await app.state.reddit.post(
-        TOKEN_URL,
-        headers={**device_headers(), "Authorization": f"Basic {basic}"},
-        json={"scopes": ["*", "email", "pii"]},
-        allow_redirects=False,
+def create_reddit_client():
+    return AsyncSession(
+        impersonate=REDDIT_TLS_IMPERSONATE, default_headers=False,
+        proxy=UPSTREAM_PROXY, timeout=30,
     )
-    if response.status_code // 100 != 2:
-        raise RuntimeError(f"Reddit token request failed: HTTP {response.status_code}")
-    data = response.json()
-    _token = data["access_token"]
-    _token_expiry = time.monotonic() + max(1, int(data.get("expires_in", 3600)) - 120)
-    _extra_headers = {
-        key: response.headers[key]
-        for key in ("x-reddit-loid", "x-reddit-session") if response.headers.get(key)
-    }
-    return _token
 
 
-async def get_token(rejected_token: str | None = None) -> str:
-    # Concurrent failures share one refresh instead of each creating a new token.
-    def usable() -> bool:
-        return bool(_token) and _token != rejected_token and time.monotonic() < _token_expiry
+@dataclass(frozen=True)
+class RedditAuth:
+    token: str
+    expiry: float
+    headers: dict[str, str]
 
-    if usable():
-        return _token
-    async with _token_lock:
+
+class RedditAuthenticationError(RuntimeError):
+    def __init__(self, response):
+        super().__init__(f"Reddit token request failed: HTTP {response.status_code}")
+        self.rate_limited = is_rate_limited(response)
+
+
+@dataclass(eq=False)
+class RedditSession:
+    client: Any
+    auth: RedditAuth | None = None
+    users: int = 0
+    retired: bool = False
+    idle: asyncio.Event = field(default_factory=asyncio.Event)
+    close_task: asyncio.Task | None = None
+
+    def __post_init__(self):
+        self.idle.set()
+
+
+class RedditSessions:
+    """Keep authentication and in-flight requests attached to their client generation."""
+
+    def __init__(self, client_factory=create_reddit_client, clock=time.monotonic):
+        self._factory = client_factory
+        self._clock = clock
+        self._current = RedditSession(client_factory())
+        self._sessions = {self._current}
+        self._lock = asyncio.Lock()
+        self._next_recovery = 0.0
+        self._closed = False
+
+    @asynccontextmanager
+    async def borrow(self):
+        if self._closed:
+            raise RuntimeError("Reddit sessions are closed")
+        session = self._current
+        session.users += 1
+        session.idle.clear()
+        try:
+            yield session
+        finally:
+            session.users -= 1
+            if not session.users:
+                session.idle.set()
+                if session.retired:
+                    await self._close_session(session)
+
+    async def _close_session(self, session):
+        async def close():
+            try:
+                await session.client.close()
+            finally:
+                self._sessions.discard(session)
+
+        if session.close_task is None:
+            session.close_task = asyncio.create_task(close())
+        await asyncio.shield(session.close_task)
+
+    async def close(self):
+        async with self._lock:
+            self._closed = True
+            sessions = list(self._sessions)
+            for session in sessions:
+                session.retired = True
+        for session in sessions:
+            await session.idle.wait()
+            await self._close_session(session)
+
+    async def _authenticate(self, session):
+        basic = base64.b64encode(f"{REDDIT_ANDROID_OAUTH_CLIENT_ID}:".encode()).decode()
+        response = await session.client.post(
+            TOKEN_URL,
+            headers={**device_headers(), "Authorization": f"Basic {basic}"},
+            json={"scopes": ["*", "email", "pii"]},
+            allow_redirects=False,
+        )
+        if response.status_code // 100 != 2:
+            raise RedditAuthenticationError(response)
+        data = response.json()
+        auth = RedditAuth(
+            token=data["access_token"],
+            expiry=self._clock() + max(1, int(data.get("expires_in", 3600)) - 120),
+            headers={key: response.headers[key]
+                     for key in ("x-reddit-loid", "x-reddit-session") if response.headers.get(key)},
+        )
+        session.auth = auth
+        return auth
+
+    async def get_auth(self, session, rejected=None):
+        def usable():
+            return (session.auth is not None and session.auth is not rejected
+                    and self._clock() < session.auth.expiry)
+
         if usable():
-            return _token
-        return await refresh_token()
+            return session.auth
+        async with self._lock:
+            if usable():
+                return session.auth
+            return await self._authenticate(session)
+
+    async def recover(self, rejected):
+        async with self._lock:
+            if self._closed:
+                return False
+            if rejected is not self._current:
+                return True  # Another request has already replaced this generation.
+            if self._clock() < self._next_recovery:
+                return False
+            candidate = None
+            try:
+                candidate = RedditSession(self._factory())
+                self._sessions.add(candidate)
+                await self._authenticate(candidate)
+                self._current = candidate
+                rejected.retired = True
+                LOGGER.info("Reddit session recovery succeeded")
+                return True
+            except Exception:
+                # Exceptions from curl may contain URLs or credentials.
+                LOGGER.warning("Reddit session recovery failed")
+                return False
+            finally:
+                # Failures and successful resets both have a full cooldown.
+                self._next_recovery = self._clock() + SESSION_RECOVERY_COOLDOWN
+                if candidate is not None and candidate is not self._current:
+                    await self._close_session(candidate)
+
+    async def request(self, request):
+        async with self.borrow() as session:
+            auth = await self.get_auth(session)
+            upstream = await reddit_request(request, session.client, auth)
+            if (request.method not in ("GET", "HEAD") or upstream.status_code not in (401, 403)
+                    or is_rate_limited(upstream)):
+                return upstream
+            try:
+                auth = await self.get_auth(session, rejected=auth)
+                upstream = await reddit_request(request, session.client, auth)
+            except Exception as error:
+                if isinstance(error, RedditAuthenticationError) and error.rate_limited:
+                    return upstream
+                if not is_feed_security_block(request, upstream):
+                    raise
+                # A blocked client's token endpoint can fail too. Keep the original
+                # feed response if rebuilding the session cannot recover it.
+            if not is_feed_security_block(request, upstream) or not await self.recover(session):
+                return upstream
+        # One retry against the current generation; no recursive recovery.
+        async with self.borrow() as session:
+            return await reddit_request(request, session.client, await self.get_auth(session))
+
+
+def is_rate_limited(response):
+    if response.status_code == 429:
+        return True
+    if response.status_code < 400:
+        return False
+    try:
+        if float(response.headers.get("x-ratelimit-remaining", "nan")) <= 0:
+            return True
+    except ValueError:
+        pass
+    retry_after = response.headers.get("retry-after", "")
+    try:
+        return float(retry_after) > 0
+    except ValueError:
+        try:
+            return parsedate_to_datetime(retry_after).timestamp() > time.time()
+        except (ValueError, TypeError, OverflowError):
+            return False
+
+
+def is_feed_security_block(request, response):
+    if (request.method not in ("GET", "HEAD") or response.status_code != 403
+            or is_rate_limited(response)):
+        return False
+    path = request.url.path.rstrip("/")
+    if path.endswith(".json"):
+        path = path[:-5]
+    listing = re.fullmatch(
+        r"(?:/(?:r/[^/]+|(?:user|u)/[^/]+/m/[^/]+))?"
+        r"(?:/(?:best|hot|new|top|controversial|rising))?", path,
+    ) or re.fullmatch(r"/(?:user|u)/[^/]+/submitted", path)
+    if not listing or "text/html" not in response.headers.get("content-type", "").lower():
+        return False
+    # HEAD omits the block page body; the listing route and HTML status identify it.
+    return request.method == "HEAD" or b"network security" in response.content.lower()
 
 
 def rewrite_url(url: str) -> str:
@@ -187,10 +354,10 @@ def reddit_api_target(request: Request) -> str:
     return "/".join(parts) + separator + query
 
 
-async def reddit_request(request: Request, token: str):
+async def reddit_request(request: Request, client, auth: RedditAuth):
     headers = {
-        **device_headers(), **_extra_headers,
-        "Authorization": f"Bearer {token}",
+        **device_headers(), **auth.headers,
+        "Authorization": f"Bearer {auth.token}",
         "Accept": request.headers.get("accept", "*/*"),
         "Cookie": "_options=%7B%22pref_quarantine_optin%22%3A%20true%2C%20"
                   "%22pref_gated_sr_optin%22%3A%20true%7D",
@@ -198,7 +365,7 @@ async def reddit_request(request: Request, token: str):
     if request.headers.get("content-type"):
         headers["Content-Type"] = request.headers["content-type"]
     body = await request.body()
-    return await app.state.reddit.request(
+    return await client.request(
         request.method, API_BASE + reddit_api_target(request), headers=headers,
         data=body if body else None, allow_redirects=False,
     )
@@ -326,10 +493,7 @@ def api_json_response(content: Any, request: Request, status_code: int = 200,
 @app.api_route("/{path:path}", methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 async def proxy(path: str, request: Request):
     try:
-        token = await get_token()
-        upstream = await reddit_request(request, token)
-        if upstream.status_code in (401, 403, 429):
-            upstream = await reddit_request(request, await get_token(rejected_token=token))
+        upstream = await app.state.reddit.request(request)
         response_headers = {
             key: upstream.headers[key]
             for key in ("cache-control", "x-ratelimit-remaining", "x-ratelimit-reset",
@@ -344,5 +508,5 @@ async def proxy(path: str, request: Request):
             response_headers["content-type"] = content_type
         return Response(upstream.content, status_code=upstream.status_code, headers=response_headers)
     except Exception:
-        LOGGER.exception("Reddit API request failed")
+        LOGGER.warning("Reddit API request failed")
         return JSONResponse({"error": "reddit_proxy_failed"}, status_code=502)
