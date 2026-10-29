@@ -1,12 +1,11 @@
 # Current state
 
-October 29, 2026: v16 hotfix (versionCode 245) is verified locally; signed publication pending.
-Latest published APK is v15.
-APK/source commit: 69d3cf164df35fe167428e630daf24ed059453a3.
-Signed CI: https://github.com/dhabibi/continuum/actions/runs/40959080393 (passed).
-Package org.cygnusx1.continuum.proxy; 8.3.1.8-vps.15-debug; versionCode 244.
+October 29, 2026: v16 hotfix is published at the existing private APK endpoint.
+APK/source commit: d3028323888456c2ef6285c01a123d29d7a7bfe4.
+Signed CI: https://github.com/dhabibi/continuum/actions/runs/40968773959 (passed).
+Package org.cygnusx1.continuum.proxy; 8.3.1.8-vps.16-debug; versionCode 245.
 Signing certificate: c0e2f382bef12fdc2d9ad06e20b80e4d596c79b584ee8fbb70fd5e4bf79787b7.
-Private links/hashes: ../outputs/continuum/INSTALL-v15.txt and SHA256SUMS-v15.txt.
+Private links/hashes: ../outputs/continuum/INSTALL-v16.txt and SHA256SUMS-v16.txt.
 Install over the existing app with Tailscale connected. Refresh existing feeds once
 so cached posts gain the new GIF metadata; no uninstall or settings reset.
 
@@ -27,7 +26,9 @@ No cache deletion, preference reset or new Parcel format was introduced.
 background and resume with autoplay enabled. A fresh launch with Video autoplay Never
 remained alive and showed ordinary VIDEO posts without autoplay player/control nodes.
 V15 gallery geometry, gestures and raw-GIF playback repairs remain unchanged.
-Physical phone confirmation is pending. Evidence: .scratch/v16-verification/.
+Signed CI passed. Both APKs passed identity/signature/ZIP, remote full-hash, and
+HTTPS byte-range/type/size verification. Physical phone confirmation is pending.
+Evidence: .scratch/v16-verification/.
 
 ## Android CLI setup
 
@@ -41,8 +42,8 @@ Android Studio is not installed and was not required. No setup intervention rema
 
 ## Return point
 
-Next: verify signed v16 CI artifacts, publish the private APK, fast-forward main,
-then collect phone startup/autoplay results.
+Daniel installs v16 over v15 and checks startup and autoplay on the phone.
+Normal videos retain the existing Video autoplay preference; choose Never to disable them.
 VPS services/routing were unchanged; no server restart. Comments remain excluded.
 Prior phone crash reports and arbitrary WebRTC UDP enforcement are not claimed fixed.
 The canonical intent.md owner draft and .serena/ remain preserved and uncommitted.
