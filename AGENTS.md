@@ -70,3 +70,8 @@ inspect each captured screenshot. Fresh devices need the private API endpoint se
 before live Reddit checks. Keep endpoint configuration out of Git.
 CLI/Gradle local builds are for verification; distribute only the existing CI-signed
 `Proxy APK` workflow outputs. The app module and `lint-checks` module are preserved.
+
+Resolved debug runtime at CLI setup: Media3 1.11.1, OkHttp 5.4.0, Glide 5.0.7,
+Room 2.8.4, Dagger 2.60 and ZoomLayout 1.9.0. Obtain current resolution with
+`./gradlew :app:dependencies --configuration debugRuntimeClasspath --no-daemon --max-workers=2`.
+Official CLI reference: https://developer.android.com/tools/agents/android-cli.
