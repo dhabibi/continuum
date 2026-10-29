@@ -1,43 +1,43 @@
 # Current state
 
-October 29, 2026: v14 is published at the existing private APK download endpoint.
-APK/source commit: 39fdde8247ffe4f7feca6b4bc042c870f5f2a84c.
-Signed CI passed: https://github.com/dhabibi/continuum/actions/runs/40941982455
-Package org.cygnusx1.continuum.proxy; 8.3.1.8-vps.14-debug; versionCode 243.
-Signing certificate: c0e2f382bef12fdc2d9ad06e20b80e4d596c79b584ee8fbb70fd5e4bf79787b7.
-Install over the existing app with Tailscale connected; no uninstall/settings reset.
-Private links and hashes: ../outputs/continuum/INSTALL-v14.txt and SHA256SUMS-v14.txt.
-Endpoint configuration remains outside Git. V12/v13 downloads remain available.
+October 29, 2026: v15 (versionCode 244) is verified locally; signed publication pending.
+Latest published APK remains v14, source 39fdde8247ffe4f7feca6b4bc042c870f5f2a84c.
+Package org.cygnusx1.continuum.proxy; persistent CI signing identity unchanged.
+Preserve the canonical intent.md owner draft and .serena/ while syncing this branch.
 
-## Verified behavior
+## v15 regression repair
 
-GIF autoplay has its own default-on setting, independent of video autoplay.
-Multi-image galleries stream Reddit MP4 renditions and preload an adjacent GIF.
-A real Android test found a 0x0 video surface after swiping; the fix keeps the
-surface drawable below the thumbnail and preserves its sizing before layout.
-Original media/download URLs, zoom, privacy/Data Saving gates and cleanup remain.
-Reddit HTTP(S) requests use the VPS across API, media, download, authentication,
-redirect and internal WebView paths; these routes have no direct fallback.
-Daniel clarified that other destinations may keep ordinary routing. No exit node added.
-The HTTP proxy does not establish an arbitrary WebRTC UDP guarantee; no such
-Reddit flow was observed. Do not describe this as device-wide/browser anonymity.
+Daniel reported static feed GIFs and overlapping/scaling glitches in galleries.
+The feed now includes gallery GIF players in its default shared playback budget,
+refreshes selection after layout/focus changes, and retains Reddit is_gif metadata.
+Animated video renditions follow GIF autoplay; normal videos retain their settings.
+GIF loops are independent while ordinary-video loop preferences remain honored.
 
-105 release regressions and 41 Python proxy/tunnel tests passed; signed CI passed.
-ARM64 Android 14 / WebView 113: real native HTTP, WebView images, service workers,
-redirects, tunnel refusal and recovery passed. GIF pixels visibly changed; a fresh
-cache received 1,048,674 bytes for the next animation; swipe/pause released players.
-Both APKs passed package/version/certificate/ZIP checks, server full-hash comparison,
-and HTTPS range/type/size/byte checks. Physical-phone behavior/login remain unobserved.
+Streaming galleries now have one preview owner. The underlying still viewer is
+hidden during MP4 playback; actual video dimensions define fit, zoom and pan.
+Late still requests cannot replace those dimensions. User zoom survives release;
+pinch/pan no longer also trigger the image's toolbar-click action.
+Original downloads, GIF fallback, Data Saving/privacy gates and profile data remain.
 
-## Services and next action
+113 release regression tests passed. On Android 16, real cached-preview gallery
+playback, aspect ratio, pinch, unchanged toolbar state, preload and lifecycle passed.
+A real r/gifs feed animated without scrolling: 148,618 of 292,500 interior pixels
+changed across captures. Native gallery preloading warmed 1,048,674 bytes from cold cache.
+Physical-phone verification remains pending. Evidence is in .scratch/v15-verification/.
 
-Anonymous proxy reddit-proxy:2026-10-29-recovery remains healthy (source 8191e11).
-Natural overnight session recovery remains unobserved; no scheduled restart added.
-Reddit tunnel reddit-tunnel:2026-10-29 is live, private TCP 10444 to loopback 8789,
-192 MiB / 1 CPU / 32 PIDs, nonroot/read-only, unless-stopped, no access logs.
-Live Reddit TLS image 200 and disallowed target 403 verified; automatic restart
-observed (restart_count 1); Docker/Tailscale enabled at boot. Other Serve routes preserved.
-Temporary emulator and forwarding connection removed. No hermes-gateway restart.
-Next action: install v14 and check GIFs on the phone. Comments remain excluded;
-prior Home/TikTok phone crash reports are not claimed resolved by this release.
-Canonical intent.md owner draft and .serena/ remain uncommitted and preserved.
+## Android CLI setup
+
+Official Homebrew android/tap/android-cli 1.1.16717390 is installed on Apple Silicon.
+Global and project Codex android-cli skills are installed; AGENTS.md has commands.
+Existing Adoptium JDK 25 and SDK 37 are reused, with user Java registration and ignored
+local.properties plus ~/.androidrc. Android Studio was not needed or installed.
+Describe, debug build, run, layout, screenshot, input tap and docs lookup all worked.
+Reusable medium_phone (Android 16 ARM64) is available; stop it when idle, keep its image.
+
+## Operations and return point
+
+V14 VPS services/routing are unchanged; no restart or server change in this repair.
+CLI local APKs are for verification; distribute only the CI-signed Proxy APK outputs.
+Next: verify signed CI artifacts, publish v15 private downloads, fast-forward main,
+then collect phone results. Comments remain excluded; no broad privacy/protocol claim added.
+Private endpoint configuration and installation URLs remain outside Git.

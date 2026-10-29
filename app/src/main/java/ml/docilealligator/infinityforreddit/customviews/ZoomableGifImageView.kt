@@ -3,6 +3,7 @@ package ml.docilealligator.infinityforreddit.customviews
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -32,8 +33,45 @@ class ZoomableGifImageView @JvmOverloads constructor(
     private var viewReady = false
     private var resetOnNextDrawable = false
     private var transformToRestore: NormalizedZoomTransform? = null
+    private var videoGeometry: Drawable? = null
+    private var videoPoster: Drawable? = null
+    private var savedVideoTransform: NormalizedZoomTransform? = null
+
+    /** A video owns the zoom coordinate system once its first frame is ready. */
+    fun showVideoContent(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        val current = videoGeometry
+        if (current?.intrinsicWidth == width && current.intrinsicHeight == height) return
+        val transform = if (current == null) savedVideoTransform else normalizedZoomTransform()
+        if (current == null) videoPoster = drawable
+        val geometry = GradientDrawable().apply { setColor(android.graphics.Color.TRANSPARENT); setSize(width, height) }
+        videoGeometry = geometry
+        transformToRestore = null
+        resetOnNextDrawable = false
+        // Do not inherit a thumbnail's absolute fit scale. Video dimensions define a separate
+        // coordinate system; apply its fit (or saved user zoom) before revealing the frame.
+        super.setImageDrawable(geometry)
+        if (transform == null) moveToCenter(1f, false)
+        else moveTo(transform.zoom, transform.normalizedPanX * width,
+            transform.normalizedPanY * height, false)
+    }
+
+    fun restoreImageContent() {
+        if (videoGeometry == null) return
+        val poster = videoPoster
+        savedVideoTransform = normalizedZoomTransform()
+        videoGeometry = null
+        videoPoster = null
+        setDisplayedDrawable(poster)
+    }
 
     private val tapDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean = true
+
+        override fun onLongPress(e: MotionEvent) {
+            if (isLongClickable) performLongClick()
+        }
+
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
             performClick()
             return true
@@ -66,7 +104,7 @@ class ZoomableGifImageView @JvmOverloads constructor(
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(ev: MotionEvent): Boolean {
-        tapDetector.onTouchEvent(ev)
+        val tapHandled = tapDetector.onTouchEvent(ev)
 
         if (ev.pointerCount >= 2 || zoom > 1.00001f) {
             parent?.requestDisallowInterceptTouchEvent(true)
@@ -79,14 +117,26 @@ class ZoomableGifImageView @JvmOverloads constructor(
             zoomGestureNotified = false
         }
 
-        val handled = super.onTouchEvent(ev)
+        // ZoomImageView also calls ImageView.onTouchEvent, which can emit a click on the final
+        // UP of a pinch. Let the gesture detector own clicks and the engine own pan/zoom.
+        val handled = engine.onTouchEvent(ev)
         if (transformToRestore != null) {
             transformToRestore = normalizedZoomTransform() ?: transformToRestore
         }
-        return handled
+        return handled || tapHandled
     }
 
     override fun setImageDrawable(drawable: Drawable?) {
+        if (videoGeometry != null) {
+            // Glide can finish a still-preview request after video playback starts. Keep it for
+            // release, but do not let it change the active video's aspect ratio or pan bounds.
+            videoPoster = drawable
+            return
+        }
+        setDisplayedDrawable(drawable)
+    }
+
+    private fun setDisplayedDrawable(drawable: Drawable?) {
         if (!viewReady || drawable == null) {
             super.setImageDrawable(drawable)
             return

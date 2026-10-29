@@ -192,4 +192,39 @@ class InlineGifVideoPlayerTest {
         assertEquals(2, parent.childCount)
         assertSame(image, parent.getChildAt(0))
     }
+
+    @Test fun `video aspect and zoom stay correct when poster has different bounds or arrives late`() {
+        parent.removeView(image)
+        val zoomImage = ml.docilealligator.infinityforreddit.customviews.ZoomableGifImageView(parent.context)
+        image = zoomImage
+        parent.addView(image, 0, FrameLayout.LayoutParams(200, 200))
+        image.setImageDrawable(android.graphics.drawable.GradientDrawable().apply { setSize(100, 100) })
+        parent.measure(View.MeasureSpec.makeMeasureSpec(200, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(200, View.MeasureSpec.EXACTLY))
+        parent.layout(0, 0, 200, 200)
+        val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, {})!!
+        val listener = argumentCaptor<Player.Listener>()
+        verify(player).addListener(listener.capture())
+        listener.firstValue.onVideoSizeChanged(VideoSize(200, 100))
+        listener.firstValue.onRenderedFirstFrame()
+        val texture = parent.getChildAt(0) as TextureView
+        fun bounds(): android.graphics.RectF {
+            shadowOf(Looper.getMainLooper()).idle()
+            image.viewTreeObserver.dispatchOnPreDraw()
+            return android.graphics.RectF(0f, 0f, 200f, 200f).also { texture.getTransform(Matrix()).mapRect(it) }
+        }
+        assertEquals("Zoom controller must remain interactive", 1f, zoomImage.alpha, 0f)
+        assertEquals(100f, bounds().height(), 0.01f)
+        assertEquals(50f, bounds().top, 0.01f)
+        // A delayed Glide result must not replace the video's coordinate system.
+        image.setImageDrawable(android.graphics.drawable.GradientDrawable().apply { setSize(50, 150) })
+        assertEquals(100f, bounds().height(), 0.01f)
+        zoomImage.zoomTo(2f, false)
+        val zoomed = bounds()
+        assertEquals(2f, zoomed.width() / zoomed.height(), 0.01f)
+        assertEquals(400f, zoomed.width(), 0.01f)
+        helper.release()
+        assertEquals(1f, image.alpha, 0f)
+        assertEquals(50, image.drawable.intrinsicWidth)
+        assertEquals(150, image.drawable.intrinsicHeight)
+    }
 }

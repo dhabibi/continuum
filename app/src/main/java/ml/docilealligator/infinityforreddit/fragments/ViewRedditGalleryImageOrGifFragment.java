@@ -385,10 +385,14 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         }
         if (media.mediaType == Post.Gallery.TYPE_GIF && !mp4Failed && !TextUtils.isEmpty(media.mp4Variant)) {
             if (gifPlayer != null) return;
-            imageHandoff.showPreview(preview);
+            // The streaming layer owns its poster and zoom geometry. Leaving BigImageView's
+            // separate preview underneath exposes a second still around a scaled video.
+            imageHandoff.clear();
+            binding.imageViewViewRedditGalleryImageOrGifFragment.cancel();
+            binding.imageViewViewRedditGalleryImageOrGifFragment.setVisibility(View.GONE);
             binding.gifVideoContainer.setVisibility(View.VISIBLE);
             binding.gifVideoContainer.setRotation(currentRotation);
-            if (preview != null) glide.load(preview).into(binding.gifVideoPreview);
+            if (preview != null) glide.load(preview).dontAnimate().into(binding.gifVideoPreview);
             gifPlayer = InlineGifVideoPlayer.create(binding.gifVideoPreview, Uri.parse(media.mp4Variant),
                     gifCreator, failed -> {
                         if (gifPlayer != failed) return;
@@ -708,6 +712,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         if (gifPlayer != null) gifPlayer.release();
         gifPlayer = null;
         binding.gifVideoContainer.setVisibility(View.GONE);
+        binding.imageViewViewRedditGalleryImageOrGifFragment.setVisibility(View.VISIBLE);
         glide.clear(binding.gifVideoPreview);
     }
 

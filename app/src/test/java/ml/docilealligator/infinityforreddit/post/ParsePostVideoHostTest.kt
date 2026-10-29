@@ -230,4 +230,36 @@ class ParsePostVideoHostTest {
         assertFalse(post.isShortClip)
         assertFalse(post.isStreamable)
     }
+
+    @Test fun `reddit animated video retains independent autoplay marker across copy and parcel`() {
+        for (withPreview in listOf(false, true)) {
+            val data = postJson("https://v.redd.it/animation", "v.redd.it", if (withPreview) previewBlock() else null)
+                .put("is_video", true).put("media", JSONObject().put("reddit_video", JSONObject()
+                    .put("is_gif", true).put("hls_url", "https://v.redd.it/animation/HLSPlaylist.m3u8")
+                    .put("fallback_url", "https://v.redd.it/animation/DASH_720.mp4")))
+            val post = ParsePost.parseBasicData(data)
+            assertEquals(Post.VIDEO_TYPE, post.postType)
+            assertTrue(post.isAnimatedVideo)
+            assertTrue(Post(post).isAnimatedVideo)
+            val cachedBeforeMetadata = Post(post).apply { setAnimatedVideo(false) }
+            assertFalse("Fresh animation metadata must rebind a cached static row", post == cachedBeforeMetadata)
+            val parcel = android.os.Parcel.obtain()
+            try {
+                post.writeToParcel(parcel, 0)
+                parcel.setDataPosition(0)
+                assertTrue(Post.CREATOR.createFromParcel(parcel).isAnimatedVideo)
+            } finally { parcel.recycle() }
+        }
+    }
+
+    @Test fun `reddit video preview flag distinguishes animation from ordinary video`() {
+        for (animated in listOf(false, true)) {
+            val preview = previewBlock().put("reddit_video_preview", JSONObject()
+                .put("is_gif", animated).put("hls_url", "https://v.redd.it/preview/HLSPlaylist.m3u8")
+                .put("fallback_url", "https://v.redd.it/preview/DASH_720.mp4"))
+            val post = ParsePost.parseBasicData(postJson("https://example.com/clip", "example.com", preview))
+            assertEquals(Post.VIDEO_TYPE, post.postType)
+            assertEquals(animated, post.isAnimatedVideo)
+        }
+    }
 }

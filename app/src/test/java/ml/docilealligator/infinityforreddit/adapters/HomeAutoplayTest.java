@@ -52,6 +52,8 @@ public class HomeAutoplayTest {
                 return new SilenceMediaSource.Factory().setDurationUs(5_000_000).createMediaSource();
             }
         };
+        android.content.SharedPreferences preferences = app.getSharedPreferences("autoplay-test", Context.MODE_PRIVATE);
+        setField(adapter, "mSharedPreferences", preferences);
         setField(adapter, "mExoCreator", creator);
         setField(adapter, "mActivity", mock(BaseActivity.class));
         setField(adapter, "mFragment", mock(PostFragmentBase.class));
@@ -79,6 +81,16 @@ public class HomeAutoplayTest {
             }
             assertNull(row.helper.getPlayer().getPlayerError());
             assertEquals(Player.STATE_READY, row.helper.getPlayer().getPlaybackState());
+            assertEquals(Player.REPEAT_MODE_ALL, row.helper.getPlayer().getRepeatMode());
+            preferences.edit().putBoolean(ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils.LOOP_VIDEO, false).apply();
+            row.play();
+            assertEquals(Player.REPEAT_MODE_OFF, row.helper.getPlayer().getRepeatMode());
+            when(post.isAnimatedVideo()).thenReturn(true);
+            row.play();
+            assertEquals(Player.REPEAT_MODE_ONE, row.helper.getPlayer().getRepeatMode());
+            when(post.isAnimatedVideo()).thenReturn(false);
+            row.play();
+            assertEquals(Player.REPEAT_MODE_OFF, row.helper.getPlayer().getRepeatMode());
         } finally {
             row.release();
             ToroExo.with(app).cleanUp();

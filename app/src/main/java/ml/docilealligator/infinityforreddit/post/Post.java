@@ -123,6 +123,7 @@ public class Post implements Parcelable {
     private final String suggestedSort;
     @Nullable
     private String mp4Variant;
+    private boolean animatedVideo;
     private ArrayList<Preview> previews = new ArrayList<>();
     /**
      * Whether {@link #previews} was built from an image the body embeds rather than sent by Reddit
@@ -303,6 +304,7 @@ public class Post implements Parcelable {
         this.distinguished = postToBeCopied.distinguished;
         this.suggestedSort = postToBeCopied.suggestedSort;
         this.mp4Variant = postToBeCopied.mp4Variant;
+        this.animatedVideo = postToBeCopied.animatedVideo;
         this.previews = postToBeCopied.previews;
         this.inlineBodyImagePreview = postToBeCopied.inlineBodyImagePreview;
         this.selfTextPlainTrimmedBeforeInlineImage = postToBeCopied.selfTextPlainTrimmedBeforeInlineImage;
@@ -389,6 +391,7 @@ public class Post implements Parcelable {
         inlineBodyImagePreview = in.readByte() != 0;
         selfTextPlainTrimmedBeforeInlineImage = in.readString();
         selfTextPlainTrimmedAfterInlineImage = in.readString();
+        animatedVideo = in.readByte() != 0;
     }
 
     public static final Creator<Post> CREATOR = new Creator<Post>() {
@@ -970,6 +973,7 @@ public class Post implements Parcelable {
         dest.writeByte((byte) (inlineBodyImagePreview ? 1 : 0));
         dest.writeString(selfTextPlainTrimmedBeforeInlineImage);
         dest.writeString(selfTextPlainTrimmedAfterInlineImage);
+        dest.writeByte((byte) (animatedVideo ? 1 : 0));
     }
 
     public boolean isStickied() {
@@ -1176,6 +1180,15 @@ public class Post implements Parcelable {
         return false;
     }
 
+    /** Reddit delivers some GIF animations as video; retain video viewing/download semantics. */
+    public boolean isAnimatedVideo() {
+        return animatedVideo;
+    }
+
+    public void setAnimatedVideo(boolean animatedVideo) {
+        this.animatedVideo = animatedVideo;
+    }
+
     @Nullable
     public String getMp4Variant() {
         return mp4Variant;
@@ -1191,6 +1204,7 @@ public class Post implements Parcelable {
             return false;
         }
         return ((Post) obj).id.equals(id)
+                && animatedVideo == ((Post) obj).animatedVideo
                 && nsfw == ((Post) obj).nsfw
                 && spoiler == ((Post) obj).spoiler
                 && isRead == ((Post) obj).isRead
@@ -1213,7 +1227,7 @@ public class Post implements Parcelable {
         return Objects.hash(
                 id, nsfw, spoiler, isRead, saved, hidden, voteType,
                 stickied, approved, approvedAtUTC, approvedBy, removed,
-                spam, locked, distinguished
+                spam, locked, distinguished, animatedVideo
         );
     }
 

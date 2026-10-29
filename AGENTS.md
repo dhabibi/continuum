@@ -40,3 +40,33 @@ for compilation checks only; do not distribute it as an update.
 Use `.scratch/` for local evidence. The anonymous proxy must remain private to the
 tailnet, bound to loopback on the host, with Reddit-only media targets. Preserve
 other Tailscale routes and services. Do not restart hermes-gateway.
+
+## Android CLI (Mac)
+
+Google's official CLI is installed with `brew install android/tap/android-cli`.
+Use the project skill at `.agents/skills/android-cli/SKILL.md` for CLI/device work.
+`android init` installs its global skill; project installation is
+`android skills add --project="$PWD" --agent=codex android-cli`.
+
+The existing Adoptium JDK 25 is registered with macOS (`/usr/libexec/java_home -v25`).
+The existing SDK is `$HOME/.cache/continuum/android-sdk`; `.androidrc` selects it for
+CLI tools and ignored `local.properties` supplies `sdk.dir` to Gradle. Reuse these.
+Android Studio is optional and is not installed. Gradle stays on this repo's wrapper.
+
+Verified commands from the project root:
+- `android info`
+- `android describe --project_dir="$PWD"` (app variants: debug/release/minifiedRelease/beta)
+- `android build :app@debug -- --no-daemon --max-workers=2`
+- `android emulator list` and `android emulator start medium_phone --headless`
+- `android run <arm64-apk-path> --device=<serial>`
+- `android layout --device=<serial>`
+- `android screen capture --device=<serial> --output=<png-path>`
+- `android input --device=<serial> tap 'id=<resource-id>'`
+- `android docs search '<Android topic>'`
+
+`medium_phone` is a reusable Android 16 ARM64 emulator. Stop it when idle; retain its
+installed image for future verification. Inspect layout before input and visually
+inspect each captured screenshot. Fresh devices need the private API endpoint set
+before live Reddit checks. Keep endpoint configuration out of Git.
+CLI/Gradle local builds are for verification; distribute only the existing CI-signed
+`Proxy APK` workflow outputs. The app module and `lint-checks` module are preserved.

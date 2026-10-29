@@ -15,6 +15,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import java.util.function.Consumer
+import kotlin.math.roundToInt
+import ml.docilealligator.infinityforreddit.customviews.ZoomableGifImageView
 
 /** A silent, looping MP4 beneath the GIF thumbnail; the image still owns touch and sizing. */
 @UnstableApi
@@ -59,6 +61,7 @@ class InlineGifVideoPlayer private constructor(
         player.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(size: VideoSize) {
                 videoSize = size
+                if (hasRenderedFrame) updateVideoGeometry()
                 // A zoomable image needs intrinsic bounds even when Reddit supplied no still.
                 if (image.scaleType == ImageView.ScaleType.MATRIX && image.drawable == null) {
                     image.setImageDrawable(GradientDrawable().apply { setSize(size.width, size.height) })
@@ -69,7 +72,9 @@ class InlineGifVideoPlayer private constructor(
             override fun onRenderedFirstFrame() {
                 if (!released) {
                     hasRenderedFrame = true
-                    image.alpha = 0f
+                    image.alpha = if (image is ZoomableGifImageView) originalImageAlpha else 0f
+                    updateVideoGeometry()
+                    resize()
                     onReady.run()
                 }
             }
@@ -89,6 +94,12 @@ class InlineGifVideoPlayer private constructor(
         player.prepare()
         player.playWhenReady = true
         resize()
+    }
+
+    private fun updateVideoGeometry() {
+        if (image is ZoomableGifImageView) {
+            image.showVideoContent((videoSize.width * videoSize.pixelWidthHeightRatio).roundToInt(), videoSize.height)
+        }
     }
 
     private fun textureLayoutParams() =
@@ -151,6 +162,7 @@ class InlineGifVideoPlayer private constructor(
         if (image.viewTreeObserver.isAlive) image.viewTreeObserver.removeOnPreDrawListener(drawListener)
         player.clearVideoTextureView(texture)
         player.release()
+        if (image is ZoomableGifImageView) image.restoreImageContent()
         image.alpha = originalImageAlpha
         parent.removeView(texture)
     }

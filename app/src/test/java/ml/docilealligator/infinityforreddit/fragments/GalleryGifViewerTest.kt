@@ -31,6 +31,7 @@ class GalleryGifViewerTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val first = Post.Gallery("image/gif", "https://i.redd.it/first.gif", "", "first.gif", "", "").apply {
             mp4Variant = "https://preview.redd.it/first.gif?format=mp4"
+            feedPreviewUrl = "https://preview.redd.it/first-still.png"
         }
         val next = Post.Gallery("image/gif", "https://i.redd.it/next.gif", "", "next.gif", "", "").apply {
             mp4Variant = "https://preview.redd.it/next.gif?format=mp4"
@@ -70,6 +71,9 @@ class GalleryGifViewerTest {
             listener.firstValue.onRenderedFirstFrame()
             shadowOf(Looper.getMainLooper()).idle()
             verify(preloader).preload(Uri.parse(next.mp4Variant), 0, false)
+            val currentFragment = fragments.first { it.isResumed }
+            assertEquals("Original viewer must not remain behind the MP4 surface", android.view.View.GONE,
+                currentFragment.requireView().findViewById<android.view.View>(R.id.image_view_view_reddit_gallery_image_or_gif_fragment).visibility)
             activity.findViewById<ViewPager>(R.id.view_pager_view_reddit_gallery_activity).setCurrentItem(1, false)
             activity.supportFragmentManager.executePendingTransactions()
             shadowOf(Looper.getMainLooper()).idle()

@@ -21,6 +21,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -524,10 +525,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                             return VIEW_TYPE_POST_COMPACT;
                         }
 
-                        if (mAutoplay) {
-                            if ((!mAutoplayNsfwVideos && post.isNSFW()) || post.isSpoiler()) {
-                                return VIEW_TYPE_POST_CARD_WITH_PREVIEW_TYPE;
-                            }
+                        if (shouldAutoplayVideo(post)) {
                             return VIEW_TYPE_POST_CARD_VIDEO_AUTOPLAY_TYPE;
                         }
 
@@ -629,10 +627,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                             return VIEW_TYPE_POST_CARD_2_COMPACT_LINK;
                         }
 
-                        if (mAutoplay) {
-                            if ((!mAutoplayNsfwVideos && post.isNSFW()) || post.isSpoiler()) {
-                                return VIEW_TYPE_POST_CARD_2_WITH_PREVIEW_TYPE;
-                            }
+                        if (shouldAutoplayVideo(post)) {
                             return VIEW_TYPE_POST_CARD_2_VIDEO_AUTOPLAY_TYPE;
                         }
 
@@ -690,10 +685,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                             return VIEW_TYPE_POST_COMPACT;
                         }
 
-                        if (mAutoplay) {
-                            if ((!mAutoplayNsfwVideos && post.isNSFW()) || post.isSpoiler()) {
-                                return VIEW_TYPE_POST_CARD_3_WITH_PREVIEW_TYPE;
-                            }
+                        if (shouldAutoplayVideo(post)) {
                             return VIEW_TYPE_POST_CARD_3_VIDEO_AUTOPLAY_TYPE;
                         }
 
@@ -2120,6 +2112,22 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         return (post.getPreviews() == null || post.getPreviews().isEmpty()) && !hasValidThumbnailFallback(post.getThumbnailUrl());
     }
 
+    /** Reddit's animated video renditions retain video routing but follow the GIF preference. */
+    private boolean shouldAutoplayVideo(Post post) {
+        boolean enabled = post.isAnimatedVideo()
+                ? mGifAutoplay && !mDataSavingMode && !shouldBlurPreview(post)
+                : mAutoplay;
+        return enabled && !(post.isNSFW() && !mAutoplayNsfwVideos) && !post.isSpoiler();
+    }
+
+    @Nullable
+    private String inlineGifVideoUrl(Post post) {
+        if (!post.isAnimatedVideo()) return post.getMp4Variant();
+        if (post.getVideoFallBackDirectUrl() != null) return post.getVideoFallBackDirectUrl();
+        if (post.getVideoDownloadUrl() != null) return post.getVideoDownloadUrl();
+        return post.getVideoUrl();
+    }
+
     /**
      * Gallery GIFs follow their independent autoplay preference and pause in Data Saving.
      * Skip NSFW posts when "Autoplay
@@ -2159,6 +2167,20 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     @Nullable
     private RecyclerView attachedRecyclerView;
 
+    // Preview completion can change a child's geometry after the first bind pass. Focus can
+    // also arrive after that pass; neither event necessarily causes a feed scroll.
+    private final ViewTreeObserver.OnGlobalLayoutListener gifAutoplayLayoutListener =
+            this::scheduleGifAutoplayUpdate;
+    private final ViewTreeObserver.OnWindowFocusChangeListener gifAutoplayFocusListener = hasFocus -> {
+        if (attachedRecyclerView == null) return;
+        if (hasFocus) {
+            scheduleGifAutoplayUpdate();
+        } else {
+            updateAnimatedGifs(attachedRecyclerView);
+            stopNextClipPreload();
+        }
+    };
+
     private final Runnable gifAutoplayUpdate = () -> {
         if (attachedRecyclerView != null) {
             updateAnimatedGifs(attachedRecyclerView);
@@ -2170,6 +2192,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         super.onAttachedToRecyclerView(recyclerView);
         attachedRecyclerView = recyclerView;
         recyclerView.addOnScrollListener(gifAutoplayScrollListener);
+        recyclerView.getViewTreeObserver().addOnGlobalLayoutListener(gifAutoplayLayoutListener);
+        recyclerView.getViewTreeObserver().addOnWindowFocusChangeListener(gifAutoplayFocusListener);
         scheduleGifAutoplayUpdate();
         scheduleNextClipPreload();
     }
@@ -2178,6 +2202,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     public void onDetachedFromRecyclerView(@NonNull RecyclerView recyclerView) {
         super.onDetachedFromRecyclerView(recyclerView);
         recyclerView.removeOnScrollListener(gifAutoplayScrollListener);
+        if (recyclerView.getViewTreeObserver().isAlive()) {
+            recyclerView.getViewTreeObserver().removeOnGlobalLayoutListener(gifAutoplayLayoutListener);
+            recyclerView.getViewTreeObserver().removeOnWindowFocusChangeListener(gifAutoplayFocusListener);
+        }
         recyclerView.removeCallbacks(gifAutoplayUpdate);
         stopNextClipPreload();
         for (InlineGifVideoPlayer player : inlineGifPlayers.values()) player.release();
@@ -2283,7 +2311,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (post == null || post.isSpoiler() || shouldBlurPreview(post)
                     || (post.isNSFW() && !mAutoplayNsfwVideos)) continue;
             if ((post.getPostType() == Post.GIF_TYPE && !mGifAutoplay)
-                    || (post.getPostType() == Post.VIDEO_TYPE && !mAutoplay)) continue;
+                    || (post.getPostType() == Post.VIDEO_TYPE && !shouldAutoplayVideo(post))) continue;
             String url = post.getPostType() == Post.GIF_TYPE ? post.getMp4Variant()
                     : post.getPostType() == Post.VIDEO_TYPE ? post.getVideoUrl() : null;
             if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) continue;
@@ -2398,9 +2426,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (position == RecyclerView.NO_POSITION) {
                 continue;
             }
-            if (holder instanceof PostBaseVideoAutoplayViewHolder) {
-                // The same question Toro asks of its own candidates.
-                if (((PostBaseVideoAutoplayViewHolder) holder).wantsToPlay()) {
+            if (holder instanceof ToroPlayer) {
+                // Gallery GIF holders are Toro players too. Excluding them here leaves every
+                // gallery paused whenever the shared budget is finite (including its default).
+                if (((ToroPlayer) holder).wantsToPlay()) {
                     candidates.add(position);
                 }
             } else {
@@ -2422,8 +2451,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
 
     /**
      * The media view of a card that may animate a gif, or null when this holder is not one -- not a
-     * gif post, blurred, preview-suppressed by data saving, or autoplay off. Video posts are
-     * excluded because Toro already drives those.
+     * gif post, blurred, preview-suppressed by data saving, or autoplay off. Ordinary video posts
+     * are excluded; an animated rendition in an image holder uses the inline GIF player.
      */
     @Nullable
     private View gifMediaView(RecyclerView.ViewHolder holder) {
@@ -2439,7 +2468,12 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             return null;
         }
 
-        if (post == null || post.getPostType() != Post.GIF_TYPE || !mGifAutoplay || mDataSavingMode
+        if (post == null) return null;
+        // Gallery layout uses an image holder even for video renditions of GIFs.
+        if (post.getPostType() == Post.VIDEO_TYPE && post.isAnimatedVideo()) {
+            return shouldAutoplayVideo(post) ? mediaView : null;
+        }
+        if (post.getPostType() != Post.GIF_TYPE || !mGifAutoplay || mDataSavingMode
                 || (post.isNSFW() && !mAutoplayNsfwVideos)) {
             return null;
         }
@@ -2485,7 +2519,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             return;
         }
         String gifUrl = post.getUrl();
-        if (animating && gifUrl == null) {
+        if (animating && gifUrl == null && !post.isAnimatedVideo()) {
             // Glide clears the view for a null model, which would drop the still the card is
             // already showing in exchange for nothing.
             return;
@@ -2498,7 +2532,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         }
 
         if (animating) {
-            String mp4 = post.getMp4Variant();
+            String mp4 = inlineGifVideoUrl(post);
             if (mp4 != null && failedGifMp4s.get(mp4) == null) {
                 InlineGifVideoPlayer player = InlineGifVideoPlayer.create(imageView, Uri.parse(mp4), mExoCreator,
                         failed -> {
@@ -2523,6 +2557,9 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     return;
                 }
             }
+            // A video rendition has no original GIF for Glide to decode. Keep its still if the
+            // stream failed; opening the video viewer remains available through the card.
+            if (post.isAnimatedVideo()) return;
             // The still rides along as the thumbnail so the card keeps showing something for the
             // seconds the original takes to arrive, instead of blanking back to the placeholder.
             mGlide.load(gifUrl)
@@ -5066,6 +5103,12 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                 } else {
                     helper.play();
                 }
+                // The helper creates its player lazily in play(), not initialize(). Always reset
+                // this on acquisition so ordinary videos cannot inherit a pooled GIF's loop mode.
+                int repeatMode = getPost().isAnimatedVideo() ? Player.REPEAT_MODE_ONE
+                        : (mSharedPreferences.getBoolean(SharedPreferencesUtils.LOOP_VIDEO, true)
+                        ? Player.REPEAT_MODE_ALL : Player.REPEAT_MODE_OFF);
+                helper.getPlayer().setRepeatMode(repeatMode);
             }
         }
 
@@ -5131,7 +5174,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             if (helper != null && helper.isEnded()) {
                 return false;
             }
-            return canPlayVideo && mediaUri != null && ToroUtil.visibleAreaOffset(this, itemView.getParent()) >= mStartAutoplayVisibleAreaOffset;
+            return canPlayVideo && shouldAutoplayVideo(getPost()) && mediaUri != null
+                    && ToroUtil.visibleAreaOffset(this, itemView.getParent()) >= mStartAutoplayVisibleAreaOffset;
         }
 
         abstract int getAdapterPosition();
@@ -5927,6 +5971,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                         int settled = ((LinearLayoutManagerBugFixed) layoutManager)
                                 .findFirstVisibleItemPosition();
                         toroPlayer.onGalleryPageSettled(settled);
+                        scheduleGifAutoplayUpdate();
                         // Written back to the post, which is what survives this holder being
                         // recycled and what the feed cache records for the next launch. Not while
                         // the card is drawing the single placeholder tile an unread image-host
@@ -7072,6 +7117,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     super.onScrollStateChanged(recyclerView, newState);
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         toroPlayer.onGalleryPageSettled(layoutManager.findFirstVisibleItemPosition());
+                        scheduleGifAutoplayUpdate();
                     }
                 }
 
