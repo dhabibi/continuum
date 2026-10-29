@@ -200,6 +200,7 @@ public class PostDetailRecyclerViewAdapterNew extends RecyclerView.Adapter<Recyc
     private final String mTimeFormatPattern;
     private final boolean mShowAbsoluteNumberOfVotes;
     private boolean mAutoplay = false;
+    private boolean mGifAutoplay;
     private final boolean mAutoplayNsfwVideos;
     private final boolean mMuteAutoplayingVideos;
     private final double mStartAutoplayVisibleAreaOffset;
@@ -327,6 +328,7 @@ public class PostDetailRecyclerViewAdapterNew extends RecyclerView.Adapter<Recyc
         mTimeFormatPattern = java.util.Objects.requireNonNull(sharedPreferences.getString(SharedPreferencesUtils.TIME_FORMAT_KEY, SharedPreferencesUtils.TIME_FORMAT_DEFAULT_VALUE));
         mShowAbsoluteNumberOfVotes = sharedPreferences.getBoolean(SharedPreferencesUtils.SHOW_ABSOLUTE_NUMBER_OF_VOTES, true);
 
+        mGifAutoplay = sharedPreferences.getBoolean(SharedPreferencesUtils.GIF_AUTOPLAY, true);
         String autoplayString = java.util.Objects.requireNonNull(sharedPreferences.getString(SharedPreferencesUtils.VIDEO_AUTOPLAY, SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_NEVER));
         int networkType = Utils.getConnectedNetwork(activity);
         if (autoplayString.equals(SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_ALWAYS_ON)) {
@@ -1191,8 +1193,10 @@ public class PostDetailRecyclerViewAdapterNew extends RecyclerView.Adapter<Recyc
                     ((PostDetailGalleryViewHolder) holder).adapter.setBlurImage(blurGallery);
                     // Same rule the feed follows for gallery gifs (issue #382): Video Autoplay on,
                     // not an autoplay-skipped NSFW/spoiler post, not blurred, not the grid layout.
+                    ((PostDetailGalleryViewHolder) holder).adapter.setGifPlayback(mExoCreator, !mDataSavingMode);
                     ((PostDetailGalleryViewHolder) holder).adapter.setAutoplayGif(
-                            mAutoplay && !blurGallery && !mShowGalleryMediaAsGrid
+                            mGifAutoplay
+                                    && !mDataSavingMode && !blurGallery && !mShowGalleryMediaAsGrid
                                     && !((!mAutoplayNsfwVideos && mPost.isNSFW()) || mPost.isSpoiler())
                                     && mPost.hasGalleryGif());
                     ArrayList<Post.Gallery> gallery = mPost.getGallery();
@@ -1506,6 +1510,13 @@ public class PostDetailRecyclerViewAdapterNew extends RecyclerView.Adapter<Recyc
 
     public void setBlurSpoiler(boolean needBlurSpoiler) {
         mNeedBlurSpoiler = needBlurSpoiler;
+    }
+
+    public void setGifAutoplay(boolean enabled) {
+        if (mGifAutoplay != enabled) {
+            mGifAutoplay = enabled;
+            notifyDataSetChanged();
+        }
     }
 
     public boolean setAutoplay(boolean autoplay) {

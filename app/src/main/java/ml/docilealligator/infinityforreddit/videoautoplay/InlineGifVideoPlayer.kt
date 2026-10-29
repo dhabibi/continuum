@@ -1,6 +1,7 @@
 package ml.docilealligator.infinityforreddit.videoautoplay
 
 import android.graphics.Matrix
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -15,7 +16,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import java.util.function.Consumer
 
-/** A silent, looping MP4 over the existing GIF thumbnail; the card still owns touch and sizing. */
+/** A silent, looping MP4 beneath the GIF thumbnail; the image still owns touch and sizing. */
 @UnstableApi
 class InlineGifVideoPlayer private constructor(
     private val image: ImageView,
@@ -27,25 +28,29 @@ class InlineGifVideoPlayer private constructor(
 ) {
     private val player = creator.createPlayer()
     private val handler = Handler(Looper.getMainLooper())
+    private val originalImageAlpha = image.alpha
     private val texture = TextureView(image.context).apply {
         isOpaque = false
-        alpha = 0f
+        alpha = 1f
         isClickable = false
         isFocusable = false
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
+    private val lastTransform = Matrix()
     private var videoSize = VideoSize.UNKNOWN
     private var released = false
     private var hasRenderedFrame = false
+    private val drawListener = android.view.ViewTreeObserver.OnPreDrawListener { resize(); true }
     private val layoutListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> resize() }
 
     private fun start(uri: Uri) {
-        val params = FrameLayout.LayoutParams(image.layoutParams as FrameLayout.LayoutParams)
-        params.width = image.width
-        params.height = image.height
-        // Before badges/loading controls, so they keep their existing drawing order.
-        parent.addView(texture, parent.indexOfChild(image) + 1, params)
+        // Keep a drawable texture underneath the preview. Waiting for a first frame with a
+        // transparent/zero-sized TextureView can prevent its SurfaceTexture from being created.
+        parent.addView(texture, parent.indexOfChild(image), textureLayoutParams())
         image.addOnLayoutChangeListener(layoutListener)
+        if (image.scaleType == ImageView.ScaleType.MATRIX) {
+            image.viewTreeObserver.addOnPreDrawListener(drawListener)
+        }
         player.volume = 0f
         player.repeatMode = Player.REPEAT_MODE_ONE
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
@@ -54,13 +59,17 @@ class InlineGifVideoPlayer private constructor(
         player.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(size: VideoSize) {
                 videoSize = size
+                // A zoomable image needs intrinsic bounds even when Reddit supplied no still.
+                if (image.scaleType == ImageView.ScaleType.MATRIX && image.drawable == null) {
+                    image.setImageDrawable(GradientDrawable().apply { setSize(size.width, size.height) })
+                }
                 resize()
             }
 
             override fun onRenderedFirstFrame() {
                 if (!released) {
                     hasRenderedFrame = true
-                    texture.alpha = 1f
+                    image.alpha = 0f
                     onReady.run()
                 }
             }
@@ -82,15 +91,32 @@ class InlineGifVideoPlayer private constructor(
         resize()
     }
 
+    private fun textureLayoutParams() =
+        FrameLayout.LayoutParams(image.layoutParams as FrameLayout.LayoutParams).apply {
+            // A gallery page can resume before its formerly GONE image has been laid out.
+            // Retain MATCH_PARENT/WRAP_CONTENT (or explicit dimensions) until measurement.
+            if (image.width > 0) width = image.width
+            if (image.height > 0) height = image.height
+        }
+
     private fun resize() {
         if (released) return
-        if (texture.layoutParams.width != image.width || texture.layoutParams.height != image.height) {
-            texture.layoutParams = FrameLayout.LayoutParams(image.layoutParams as FrameLayout.LayoutParams).apply {
-                width = image.width
-                height = image.height
-            }
+        val params = textureLayoutParams()
+        if (texture.layoutParams.width != params.width || texture.layoutParams.height != params.height) {
+            texture.layoutParams = params
         }
         if (image.width == 0 || image.height == 0 || videoSize.width == 0 || videoSize.height == 0) return
+        if (image.scaleType == ImageView.ScaleType.MATRIX) {
+            val drawable = image.drawable
+            if (drawable != null && drawable.intrinsicWidth > 0 && drawable.intrinsicHeight > 0) {
+                applyTransform(Matrix().apply {
+                    setScale(drawable.intrinsicWidth.toFloat() / image.width,
+                        drawable.intrinsicHeight.toFloat() / image.height)
+                    postConcat(image.imageMatrix)
+                })
+                return
+            }
+        }
         val videoAspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
         val viewAspect = image.width.toFloat() / image.height
         val crop = image.scaleType == ImageView.ScaleType.CENTER_CROP
@@ -103,9 +129,16 @@ class InlineGifVideoPlayer private constructor(
             ImageView.ScaleType.FIT_END -> 1f
             else -> 0.5f
         }
-        texture.setTransform(Matrix().apply {
+        applyTransform(Matrix().apply {
             setScale(scaleX, scaleY, image.width * alignment, image.height * alignment)
         })
+    }
+
+    private fun applyTransform(matrix: Matrix) {
+        if (matrix != lastTransform) {
+            lastTransform.set(matrix)
+            texture.setTransform(matrix)
+        }
     }
 
     fun isBuffering(): Boolean = player.playbackState == Player.STATE_BUFFERING
@@ -115,8 +148,10 @@ class InlineGifVideoPlayer private constructor(
         released = true
         handler.removeCallbacksAndMessages(null)
         image.removeOnLayoutChangeListener(layoutListener)
+        if (image.viewTreeObserver.isAlive) image.viewTreeObserver.removeOnPreDrawListener(drawListener)
         player.clearVideoTextureView(texture)
         player.release()
+        image.alpha = originalImageAlpha
         parent.removeView(texture)
     }
 

@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.activities;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -585,7 +586,7 @@ public class CommentActivity extends BaseActivity implements UploadImageEnabledA
         sendingSnackbar.show();
 
         Retrofit newAuthenticatorOauthRetrofit = mOauthRetrofit.newBuilder()
-            .client(new OkHttpClient.Builder().authenticator(new AnyAccountAccessTokenAuthenticator(APIUtils.getClientId(getApplicationContext()), mRetrofit, mRedditDataRoomDatabase, account, mCurrentAccountSharedPreferences))
+            .client(RedditRouting.clientBuilder(getApplicationContext()).authenticator(new AnyAccountAccessTokenAuthenticator(APIUtils.getClientId(getApplicationContext()), mRetrofit, mRedditDataRoomDatabase, account, mCurrentAccountSharedPreferences))
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)

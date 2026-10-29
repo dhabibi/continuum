@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.app.Activity;
 import android.app.Application;
 import android.app.WallpaperColors;
@@ -143,6 +144,12 @@ public class Infinity extends Application implements DefaultLifecycleObserver {
     private void refreshShortClipPreference() {
         ShortClipHostUtils.setInlinePlaybackEnabled(mSharedPreferences.getBoolean(
                 SharedPreferencesUtils.PLAY_SHORT_CLIP_HOSTS_INLINE, true));
+    }
+
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(base);
+        RedditRouting.install(base);
     }
 
     @Override

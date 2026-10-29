@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.activities;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -181,6 +182,10 @@ public class WebViewActivity extends BaseActivity {
             copyLink(url);
             return true;
         } else if (item.getItemId() == R.id.action_open_external_browser_web_view_activity) {
+            if (RedditRouting.isRedditUrl(url)) {
+                Toast.makeText(this, R.string.reddit_external_browser_blocked, Toast.LENGTH_LONG).show();
+                return true;
+            }
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW);
                 intent.setData(Uri.parse(RedditLinkUtils.applyLinkDomain(getDefaultSharedPreferences(), url)));

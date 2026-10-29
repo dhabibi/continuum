@@ -1,13 +1,11 @@
 package ml.docilealligator.infinityforreddit
 
 import android.content.Context
-import java.net.InetSocketAddress
-import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import ml.docilealligator.infinityforreddit.apimonitor.ApiMonitorEventListener
+import ml.docilealligator.infinityforreddit.network.RedditRouting
 import ml.docilealligator.infinityforreddit.network.RedditMediaProxyInterceptor
 import ml.docilealligator.infinityforreddit.utils.APIUtils
-import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 
@@ -58,7 +56,7 @@ object ImageOkHttpClient {
     }
 
     private fun build(applicationContext: Context): OkHttpClient {
-        val builder = OkHttpClient.Builder()
+        val builder = RedditRouting.clientBuilder(applicationContext)
             .readTimeout(30, TimeUnit.SECONDS)
             .connectTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
@@ -86,26 +84,6 @@ object ImageOkHttpClient {
         if (applicationContext is Infinity) {
             val apiCallTracker = applicationContext.appComponent.apiCallTracker()
             builder.eventListenerFactory(ApiMonitorEventListener.Factory(apiCallTracker))
-        }
-
-        val proxySharedPreferences = applicationContext.getSharedPreferences(
-            SharedPreferencesUtils.PROXY_SHARED_PREFERENCES_FILE, Context.MODE_PRIVATE
-        )
-        if (proxySharedPreferences.getBoolean(SharedPreferencesUtils.PROXY_ENABLED, false)) {
-            val proxyType = Proxy.Type.valueOf(
-                proxySharedPreferences.getString(SharedPreferencesUtils.PROXY_TYPE, "HTTP")!!
-            )
-            if (proxyType != Proxy.Type.DIRECT) {
-                val proxyHost = proxySharedPreferences.getString(
-                    SharedPreferencesUtils.PROXY_HOSTNAME, "127.0.0.1"
-                )
-                val proxyPort = SharedPreferencesUtils.getInt(
-                    proxySharedPreferences, SharedPreferencesUtils.PROXY_PORT, "1080"
-                )
-                builder.proxy(
-                    Proxy(proxyType, InetSocketAddress.createUnresolved(proxyHost, proxyPort))
-                )
-            }
         }
 
         return builder.build()

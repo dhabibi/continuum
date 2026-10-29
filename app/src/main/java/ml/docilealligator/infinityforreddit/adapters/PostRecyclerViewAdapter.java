@@ -296,6 +296,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     private boolean mShowDividerInCompactLayout;
     private boolean mShowAbsoluteNumberOfVotes;
     private boolean mAutoplay = false;
+    private boolean mGifAutoplay = true;
     private boolean mAutoplayNsfwVideos;
     private boolean mMuteAutoplayingVideos;
     private boolean mShowThumbnailOnTheLeftInCompactLayout;
@@ -378,6 +379,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             mTimeFormatPattern = java.util.Objects.requireNonNull(sharedPreferences.getString(SharedPreferencesUtils.TIME_FORMAT_KEY, SharedPreferencesUtils.TIME_FORMAT_DEFAULT_VALUE));
             mShowDividerInCompactLayout = sharedPreferences.getBoolean(SharedPreferencesUtils.SHOW_DIVIDER_IN_COMPACT_LAYOUT, true);
             mShowAbsoluteNumberOfVotes = sharedPreferences.getBoolean(SharedPreferencesUtils.SHOW_ABSOLUTE_NUMBER_OF_VOTES, true);
+            mGifAutoplay = sharedPreferences.getBoolean(SharedPreferencesUtils.GIF_AUTOPLAY, true);
             String autoplayString = java.util.Objects.requireNonNull(sharedPreferences.getString(SharedPreferencesUtils.VIDEO_AUTOPLAY, SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_NEVER));
             int networkType = Utils.getConnectedNetwork(activity);
             if (autoplayString.equals(SharedPreferencesUtils.VIDEO_AUTOPLAY_VALUE_ALWAYS_ON)) {
@@ -1367,6 +1369,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                         }
                         boolean blurGallery = (post.isNSFW() && mNeedBlurNsfw && !(mDoNotBlurNsfwInNsfwSubreddits && mFragment != null && mFragment.getIsNsfwSubreddit())) || (post.isSpoiler() && mNeedBlurSpoiler);
                         ((PostBaseGalleryTypeViewHolder) holder).adapter.setBlurImage(blurGallery);
+                        ((PostBaseGalleryTypeViewHolder) holder).adapter.setGifPlayback(mExoCreator, !mDataSavingMode);
                         ((PostBaseGalleryTypeViewHolder) holder).adapter.setAutoplayGif(shouldAutoplayGalleryGif(post, blurGallery));
                         ((PostBaseGalleryTypeViewHolder) holder).adapter.setGalleryImages(post.getGallery());
                         resolveImageHostGallery((PostBaseGalleryTypeViewHolder) holder, post);
@@ -1830,6 +1833,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
                     }
                     boolean blurGallery = (post.isNSFW() && mNeedBlurNsfw && !(mDoNotBlurNsfwInNsfwSubreddits && mFragment != null && mFragment.getIsNsfwSubreddit())) || (post.isSpoiler() && mNeedBlurSpoiler);
                     ((PostGalleryBaseGalleryTypeViewHolder) holder).adapter.setBlurImage(blurGallery);
+                    ((PostGalleryBaseGalleryTypeViewHolder) holder).adapter.setGifPlayback(mExoCreator, !mDataSavingMode);
                     ((PostGalleryBaseGalleryTypeViewHolder) holder).adapter.setAutoplayGif(shouldAutoplayGalleryGif(post, blurGallery));
                     ((PostGalleryBaseGalleryTypeViewHolder) holder).adapter.setGalleryImages(post.getGallery());
                     resolveImageHostGallery((PostGalleryBaseGalleryTypeViewHolder) holder, post);
@@ -2117,15 +2121,14 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     }
 
     /**
-     * Whether a gallery post may animate its gifs in the feed (issue #382). This is the same rule
-     * an autoplaying video post follows — Settings -&gt; Video -&gt; "Video Autoplay" (already folded
-     * into {@link #mAutoplay} together with the Wi-Fi check), skipping NSFW posts when "Autoplay
+     * Gallery GIFs follow their independent autoplay preference and pause in Data Saving.
+     * Skip NSFW posts when "Autoplay
      * NSFW videos" is off, and skipping spoilers — plus two of its own: a blurred gallery keeps its
      * still, and so does the grid layout, where every tile is on screen at once and animating them
      * would mean pulling every gif in the gallery at full size.
      */
     private boolean shouldAutoplayGalleryGif(Post post, boolean blurGallery) {
-        return mAutoplay && !blurGallery && !mShowGalleryMediaAsGrid
+        return mGifAutoplay && !mDataSavingMode && !blurGallery && !mShowGalleryMediaAsGrid
                 && !((!mAutoplayNsfwVideos && post.isNSFW()) || post.isSpoiler())
                 && post.hasGalleryGif();
     }
@@ -2167,6 +2170,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
         super.onAttachedToRecyclerView(recyclerView);
         attachedRecyclerView = recyclerView;
         recyclerView.addOnScrollListener(gifAutoplayScrollListener);
+        scheduleGifAutoplayUpdate();
         scheduleNextClipPreload();
     }
 
@@ -2223,7 +2227,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     private void scheduleNextClipPreload() {
         if (attachedRecyclerView == null) return;
         attachedRecyclerView.removeCallbacks(nextClipPreload);
-        if (canPlayVideo && mAutoplay && !mDataSavingMode) {
+        if (canPlayVideo && (mAutoplay || mGifAutoplay) && !mDataSavingMode) {
             attachedRecyclerView.postDelayed(nextClipPreload, 600);
         }
     }
@@ -2236,7 +2240,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
     @OptIn(markerClass = UnstableApi.class)
     private void preloadNextClip() {
         RecyclerView view = attachedRecyclerView;
-        if (view == null || !canPlayVideo || !mAutoplay || mDataSavingMode
+        if (view == null || !canPlayVideo || !(mAutoplay || mGifAutoplay) || mDataSavingMode
                 || !view.hasWindowFocus() || !view.getGlobalVisibleRect(new android.graphics.Rect())
                 || view.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
             stopNextClipPreload();
@@ -2278,6 +2282,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             Post post = peek(position);
             if (post == null || post.isSpoiler() || shouldBlurPreview(post)
                     || (post.isNSFW() && !mAutoplayNsfwVideos)) continue;
+            if ((post.getPostType() == Post.GIF_TYPE && !mGifAutoplay)
+                    || (post.getPostType() == Post.VIDEO_TYPE && !mAutoplay)) continue;
             String url = post.getPostType() == Post.GIF_TYPE ? post.getMp4Variant()
                     : post.getPostType() == Post.VIDEO_TYPE ? post.getVideoUrl() : null;
             if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) continue;
@@ -2342,6 +2348,7 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(child);
             View mediaView = gifMediaView(holder);
             if (mediaView == null) {
+                setGifAnimating(holder, false);
                 releaseInlineGif(holder);
                 continue;
             }
@@ -2432,10 +2439,8 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             return null;
         }
 
-        if (post == null || post.getPostType() != Post.GIF_TYPE || !mAutoplay) {
-            return null;
-        }
-        if (mDataSavingMode && (mDisableImagePreview || mOnlyDisablePreviewInVideoAndGifPosts)) {
+        if (post == null || post.getPostType() != Post.GIF_TYPE || !mGifAutoplay || mDataSavingMode
+                || (post.isNSFW() && !mAutoplayNsfwVideos)) {
             return null;
         }
         boolean blurImage = (post.isNSFW() && mNeedBlurNsfw
@@ -2951,6 +2956,13 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
 
     public void setShowAbsoluteNumberOfVotes(boolean showAbsoluteNumberOfVotes) {
         mShowAbsoluteNumberOfVotes = showAbsoluteNumberOfVotes;
+    }
+
+    public void setGifAutoplay(boolean enabled) {
+        mGifAutoplay = enabled;
+        if (attachedRecyclerView != null) updateAnimatedGifs(attachedRecyclerView);
+        stopNextClipPreload();
+        scheduleNextClipPreload();
     }
 
     public boolean setAutoplay(boolean autoplay) {
@@ -3820,7 +3832,10 @@ public class PostRecyclerViewAdapter extends PagingDataAdapter<Post, RecyclerVie
             for (InlineGifVideoPlayer player : inlineGifPlayers.values()) player.release();
             inlineGifPlayers.clear();
         }
-        if (canPlayVideo) scheduleNextClipPreload();
+        if (canPlayVideo) {
+            scheduleGifAutoplayUpdate();
+            scheduleNextClipPreload();
+        }
     }
 
     public void provideItemWidth(int width) {

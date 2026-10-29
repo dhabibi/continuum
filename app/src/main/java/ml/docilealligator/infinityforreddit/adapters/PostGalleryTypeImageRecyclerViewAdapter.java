@@ -32,6 +32,9 @@ import jp.wasabeef.glide.transformations.RoundedCornersTransformation;
 import ml.docilealligator.infinityforreddit.SaveMemoryCenterInisdeDownsampleStrategy;
 import ml.docilealligator.infinityforreddit.databinding.ItemGalleryImageInPostFeedBinding;
 import ml.docilealligator.infinityforreddit.post.Post;
+import ml.docilealligator.infinityforreddit.videoautoplay.ExoCreator;
+import ml.docilealligator.infinityforreddit.videoautoplay.InlineGifVideoPlayer;
+import ml.docilealligator.infinityforreddit.videoautoplay.NextClipPreloader;
 
 @SuppressWarnings("NullAway.Init")
 public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapter<PostGalleryTypeImageRecyclerViewAdapter.ImageViewHolder> {
@@ -50,13 +53,17 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
     private int maxPreviewHeight;
     private final boolean showCaption;
     private boolean isGridLayout;
-    // Whether this post is eligible to animate its gifs at all: Video Autoplay is on (and, on the
-    // "On Wi-Fi" setting, we are on Wi-Fi), and the post is not one autoplay skips (NSFW with
+    // Whether this post may animate GIFs: GIF Autoplay is on, Data Saving is off, and
+    // the post is not one autoplay skips (NSFW with
     // "Autoplay NSFW videos" off, or a spoiler). Set by the host adapter on every bind.
     private boolean autoplayGif;
     // Whether the host RecyclerView's autoplay coordinator has currently selected this post to
     // play, honouring Settings -> Video -> "Simultaneous autoplay limit" across the whole feed.
     private boolean playing;
+    @Nullable private ExoCreator gifCreator;
+    @Nullable private NextClipPreloader gifPreloader;
+    private boolean preloadGifs;
+
     // The gallery page the pager is settled on. Only that tile animates -- the neighbouring pages
     // RecyclerView keeps bound for a smooth swipe are off screen, and animating them would spend
     // the autoplay budget on frames nobody sees.
@@ -88,6 +95,26 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
         this.mCardViewColor = mCardViewColor;
         this.mCommentColor = mCommentColor;
         showCaption = true;
+    }
+
+    /** The caller supplies its existing cached, proxy-aware player factory and data-saving gate. */
+    public void setGifPlayback(@Nullable ExoCreator creator, boolean preloadAllowed) {
+        gifCreator = creator;
+        preloadGifs = preloadAllowed;
+        if (!preloadAllowed) stopGifPreload();
+    }
+
+    private void stopGifPreload() {
+        if (gifPreloader != null) gifPreloader.stop();
+    }
+
+    private void preloadNextGif() {
+        if (!playing || !preloadGifs || !canAnimateCurrentTile() || gifCreator == null
+                || currentPosition + 1 >= galleryImages.size()) return;
+        Post.Gallery next = galleryImages.get(currentPosition + 1);
+        if (next.mediaType != Post.Gallery.TYPE_GIF || TextUtils.isEmpty(next.mp4Variant)) return;
+        if (gifPreloader == null) gifPreloader = gifCreator.createPreloader();
+        if (gifPreloader != null) gifPreloader.preload(Uri.parse(next.mp4Variant), 0, false);
     }
 
     @NonNull
@@ -170,12 +197,29 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
 
     @Override
     public void onDetachedFromRecyclerView(@NonNull RecyclerView recyclerView) {
+        setPlaying(false);
+        stopGifPreload();
         super.onDetachedFromRecyclerView(recyclerView);
         attachedRecyclerView = null;
     }
 
     @Override
+    public void onViewDetachedFromWindow(@NonNull ImageViewHolder holder) {
+        stopAnimation(holder);
+        stopGifPreload();
+        super.onViewDetachedFromWindow(holder);
+    }
+
+    @Override
+    public void onViewAttachedToWindow(@NonNull ImageViewHolder holder) {
+        super.onViewAttachedToWindow(holder);
+        if (shouldAnimate(holder.getBindingAdapterPosition())) startCurrentTile();
+    }
+
+    @Override
     public void onViewRecycled(@NonNull ImageViewHolder holder) {
+        stopAnimation(holder);
+        holder.failedMp4 = null;
         super.onViewRecycled(holder);
         if (holder.pendingLayoutListener != null) {
             holder.binding.imageViewItemGalleryImageInPostFeed.removeOnLayoutChangeListener(holder.pendingLayoutListener);
@@ -212,12 +256,19 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
             return;
         }
 
+        if (holder.gifPlayer != null) {
+            holder.gifPlayer.release();
+            holder.gifPlayer = null;
+        }
         Post.Gallery galleryImage = galleryImages.get(index);
+        boolean streamGif = shouldAnimate(index) && gifCreator != null
+                && !TextUtils.isEmpty(galleryImage.mp4Variant)
+                && !Objects.equals(holder.failedMp4, galleryImage.mp4Variant);
         // Prefer the resolution-bounded feed preview, which for a gif is a static still. The source
         // -- the animated gif itself, often tens of MB -- is loaded only for the one tile that is
         // playing (issue #382), or when there is no usable preview to fall back on. The full-screen
         // media view is unaffected — it loads `url` directly.
-        boolean loadSource = shouldAnimate(index) || galleryImage.feedPreviewUrl == null;
+        boolean loadSource = !streamGif && (shouldAnimate(index) || galleryImage.feedPreviewUrl == null);
         String loadUrl = loadSource ? galleryImage.url : galleryImage.feedPreviewUrl;
 
         // A still is worth caching decoded (ALL); an animated gif must not be. Its decoded resource
@@ -245,6 +296,7 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
                 holder.binding.errorImageViewItemGalleryImageInPostFeed.setVisibility(View.GONE);
                 holder.binding.errorTextViewItemGalleryImageInPostFeed.setVisibility(View.GONE);
                 holder.binding.progressBarItemGalleryImageInPostFeed.setVisibility(View.GONE);
+                if (animatedResource && shouldAnimate(holder.getBindingAdapterPosition())) preloadNextGif();
                 if (resource instanceof Animatable) {
                     // A gif with no usable still to fall back on lands here even when this tile is
                     // not the one playing. Glide starts the animation immediately after this
@@ -276,6 +328,24 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
                 imageRequestBuilder.centerInside().downsample(saveMemoryCenterInisdeDownsampleStrategy).into(holder.binding.imageViewItemGalleryImageInPostFeed);
             }
         }
+        if (streamGif && gifCreator != null) {
+            stopGifPreload();
+            holder.gifPlayer = InlineGifVideoPlayer.create(
+                    holder.binding.imageViewItemGalleryImageInPostFeed,
+                    Uri.parse(galleryImage.mp4Variant), gifCreator,
+                    failed -> {
+                        if (holder.gifPlayer != failed) return;
+                        holder.failedMp4 = galleryImage.mp4Variant;
+                        loadImage(holder);
+                    }, () -> {
+                        holder.binding.progressBarItemGalleryImageInPostFeed.setVisibility(View.GONE);
+                        preloadNextGif();
+                    }, this::stopGifPreload);
+            if (holder.gifPlayer == null) {
+                holder.failedMp4 = galleryImage.mp4Variant;
+                loadImage(holder);
+            }
+        }
     }
 
     /**
@@ -301,6 +371,7 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
 
     public void setAutoplayGif(boolean autoplayGif) {
         this.autoplayGif = autoplayGif;
+        if (!autoplayGif) setPlaying(false);
     }
 
     /** Called by the host ViewHolder when the autoplay coordinator starts or stops this post. */
@@ -309,6 +380,7 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
             return;
         }
         this.playing = playing;
+        stopGifPreload();
         if (playing) {
             startCurrentTile();
         } else {
@@ -324,6 +396,7 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
         if (this.currentPosition == currentPosition) {
             return false;
         }
+        stopGifPreload();
         this.currentPosition = currentPosition;
         if (!playing) {
             return true;
@@ -348,6 +421,7 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
             // Not bound yet — loadImage() consults shouldAnimate() when it is.
             return;
         }
+        if (holder.gifPlayer != null) return;
         Drawable drawable = holder.binding.imageViewItemGalleryImageInPostFeed.getDrawable();
         if (drawable instanceof Animatable) {
             ((Animatable) drawable).start();
@@ -357,6 +431,10 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
     }
 
     private void stopAnimation(ImageViewHolder holder) {
+        if (holder.gifPlayer != null) {
+            holder.gifPlayer.release();
+            holder.gifPlayer = null;
+        }
         Drawable drawable = holder.binding.imageViewItemGalleryImageInPostFeed.getDrawable();
         if (drawable instanceof Animatable && ((Animatable) drawable).isRunning()) {
             // Leave the frame it stopped on: it is a frame of the gif itself, so freezing beats
@@ -435,6 +513,7 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
             this.galleryImages = incoming;
             return;
         }
+        setPlaying(false);
         this.galleryImages = incoming;
         // A recycled holder is showing a different post now, so its pager starts back at page one.
         currentPosition = 0;
@@ -495,6 +574,8 @@ public class PostGalleryTypeImageRecyclerViewAdapter extends RecyclerView.Adapte
     }
 
     class ImageViewHolder extends RecyclerView.ViewHolder {
+        @Nullable InlineGifVideoPlayer gifPlayer;
+        @Nullable String failedMp4;
 
         ItemGalleryImageInPostFeedBinding binding;
         // The deferred-load layout listener for this holder, if it hasn't fired yet. Tracked so a

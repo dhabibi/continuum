@@ -21,6 +21,7 @@ import ml.docilealligator.infinityforreddit.events.ChangeMuteNSFWVideoEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeRememberMutingOptionInPostFeedEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeStartAutoplayVisibleAreaOffsetEvent;
 import ml.docilealligator.infinityforreddit.events.ChangeVideoAutoplayEvent;
+import ml.docilealligator.infinityforreddit.events.ChangeGifAutoplayEvent;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
 import org.greenrobot.eventbus.EventBus;
 
@@ -36,6 +37,13 @@ public class VideoPreferenceFragment extends CustomFontPreferenceFragmentCompat 
 
         ((Infinity) mActivity.getApplication()).getAppComponent().inject(this);
 
+        SwitchPreference gifAutoplayPreference = findPreference(SharedPreferencesUtils.GIF_AUTOPLAY);
+        if (gifAutoplayPreference != null) {
+            gifAutoplayPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                EventBus.getDefault().post(new ChangeGifAutoplayEvent((Boolean) newValue));
+                return true;
+            });
+        }
         ListPreference videoAutoplayListPreference = findPreference(SharedPreferencesUtils.VIDEO_AUTOPLAY);
         SwitchPreference muteAutoplayingVideosSwitchPreference = findPreference(SharedPreferencesUtils.MUTE_AUTOPLAYING_VIDEOS);
         SwitchPreference rememberMutingOptionInPostFeedSwitchPreference = findPreference(SharedPreferencesUtils.REMEMBER_MUTING_OPTION_IN_POST_FEED);

@@ -1227,11 +1227,13 @@ public class Post implements Parcelable {
         public String fallbackUrl;
         private boolean hasFallback;
         // A smaller, resolution-bounded preview used when rendering the gallery inline in the
-        // feed/post-detail card. The full-screen media view keeps using `url` (the source). For a
-        // gif this is a static still, so the inline gallery falls back to `url` for the one tile
-        // autoplay is animating. Null for items that have no usable preview.
+        // feed/post-detail card. For GIFs this is a static still under the streaming rendition
+        // or original animation. Null for items that have no usable preview.
         @Nullable
         public String feedPreviewUrl;
+        // Streaming rendition only; url remains the original GIF for sharing/downloads.
+        @Nullable
+        public String mp4Variant;
         public String fileName;
         public int mediaType;
         public String caption;
@@ -1264,6 +1266,7 @@ public class Post implements Parcelable {
             fallbackUrl = Objects.requireNonNull(in.readString());
             hasFallback = in.readByte() != 0;
             feedPreviewUrl = in.readString();
+            mp4Variant = in.readString();
             fileName = Objects.requireNonNull(in.readString());
             mediaType = in.readInt();
             caption = Objects.requireNonNull(in.readString());
@@ -1294,6 +1297,7 @@ public class Post implements Parcelable {
             parcel.writeString(fallbackUrl);
             parcel.writeByte((byte) (hasFallback ? 1 : 0));
             parcel.writeString(feedPreviewUrl);
+            parcel.writeString(mp4Variant);
             parcel.writeString(fileName);
             parcel.writeInt(mediaType);
             parcel.writeString(caption);

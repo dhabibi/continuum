@@ -66,6 +66,8 @@ import ml.docilealligator.infinityforreddit.customviews.ImageZoomConfiguration;
 import ml.docilealligator.infinityforreddit.databinding.FragmentViewRedditGalleryImageOrGifBinding;
 import ml.docilealligator.infinityforreddit.network.ForegroundGlideImageLoader;
 import ml.docilealligator.infinityforreddit.post.Post;
+import ml.docilealligator.infinityforreddit.videoautoplay.ExoCreator;
+import ml.docilealligator.infinityforreddit.videoautoplay.InlineGifVideoPlayer;
 import ml.docilealligator.infinityforreddit.services.DownloadMediaService;
 import ml.docilealligator.infinityforreddit.utils.MediaFileNameUtils;
 import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils;
@@ -88,6 +90,10 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
 
     @Inject
     Executor mExecutor;
+    @Inject
+    ExoCreator gifCreator;
+    @Nullable private InlineGifVideoPlayer gifPlayer;
+    private boolean mp4Failed;
 
     private ViewRedditGalleryActivity activity;
     private RequestManager glide;
@@ -165,6 +171,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
             @Override
             public void onSuccess(File image) {
                 binding.progressBarViewRedditGalleryImageOrGifFragment.setVisibility(View.GONE);
+                activity.onGalleryMediaReady(requireArguments().getInt(EXTRA_INDEX));
 
                 final SubsamplingScaleImageView view = binding.imageViewViewRedditGalleryImageOrGifFragment.getSSIV();
                 if (view == null) imageHandoff.originalReady();
@@ -225,6 +232,9 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
                 hideAppBar();
             }
         });
+
+        binding.gifVideoPreview.setOnClickListener(view ->
+                binding.imageViewViewRedditGalleryImageOrGifFragment.performClick());
 
         binding.captionLayoutViewRedditGalleryImageOrGifFragment.setOnClickListener(view -> hideAppBar());
 
@@ -340,6 +350,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
     }
 
     private void applyRotation() {
+        binding.gifVideoContainer.setRotation(currentRotation);
         SubsamplingScaleImageView ssiv = binding.imageViewViewRedditGalleryImageOrGifFragment.getSSIV();
         if (media.mediaType != Post.Gallery.TYPE_GIF && ssiv != null) {
             // Static images: let the subsampling view re-render at the new orientation
@@ -367,10 +378,30 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
 
     private void loadImage() {
         if (!imageViewAlive) return;
-        String preview = media.mediaType == Post.Gallery.TYPE_IMAGE ? media.feedPreviewUrl : null;
+        String preview = media.feedPreviewUrl;
         if (!isResumed()) {
             imageHandoff.showPreview(preview);
             return;
+        }
+        if (media.mediaType == Post.Gallery.TYPE_GIF && !mp4Failed && !TextUtils.isEmpty(media.mp4Variant)) {
+            if (gifPlayer != null) return;
+            imageHandoff.showPreview(preview);
+            binding.gifVideoContainer.setVisibility(View.VISIBLE);
+            binding.gifVideoContainer.setRotation(currentRotation);
+            if (preview != null) glide.load(preview).into(binding.gifVideoPreview);
+            gifPlayer = InlineGifVideoPlayer.create(binding.gifVideoPreview, Uri.parse(media.mp4Variant),
+                    gifCreator, failed -> {
+                        if (gifPlayer != failed) return;
+                        mp4Failed = true;
+                        releaseGifPlayer();
+                        loadImage();
+                    }, () -> {
+                        binding.progressBarViewRedditGalleryImageOrGifFragment.setVisibility(View.GONE);
+                        activity.onGalleryMediaReady(requireArguments().getInt(EXTRA_INDEX));
+                    }, activity::stopGifPreload);
+            if (gifPlayer != null) return;
+            mp4Failed = true;
+            releaseGifPlayer();
         }
         imageHandoff.show(preview, isFallback ? media.fallbackUrl : media.url);
         // Static images re-apply rotation in the SSIV onImageLoaded callback; GIFs are
@@ -656,6 +687,8 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         SubsamplingScaleImageView ssiv = binding.imageViewViewRedditGalleryImageOrGifFragment.getSSIV();
         if (ssiv == null || !ssiv.hasImage()) {
             loadImage();
+        } else {
+            activity.onGalleryMediaReady(requireArguments().getInt(EXTRA_INDEX));
         }
 
         if (activity.isActionBarHidden()) {
@@ -671,8 +704,16 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
         }
     }
 
+    private void releaseGifPlayer() {
+        if (gifPlayer != null) gifPlayer.release();
+        gifPlayer = null;
+        binding.gifVideoContainer.setVisibility(View.GONE);
+        glide.clear(binding.gifVideoPreview);
+    }
+
     @Override
     public void onDestroyView() {
+        releaseGifPlayer();
         imageViewAlive = false;
         imageHandoff.clear();
         super.onDestroyView();
@@ -686,6 +727,8 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
 
     @Override
     public void onPause() {
+        releaseGifPlayer();
+        activity.stopGifPreload();
         SubsamplingScaleImageView view = binding.imageViewViewRedditGalleryImageOrGifFragment.getSSIV();
         if (view == null || !view.hasImage()) {
             binding.imageViewViewRedditGalleryImageOrGifFragment.cancel();

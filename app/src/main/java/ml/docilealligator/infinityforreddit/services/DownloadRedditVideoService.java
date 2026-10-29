@@ -1,6 +1,7 @@
 package ml.docilealligator.infinityforreddit.services;
 
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.PendingIntent;
@@ -202,7 +203,7 @@ public class DownloadRedditVideoService extends JobService {
                 }
             };
 
-            OkHttpClient client = new OkHttpClient.Builder()
+            OkHttpClient client = RedditRouting.clientBuilder(getApplicationContext())
                     .addNetworkInterceptor(chain -> {
                         okhttp3.Response originalResponse = chain.proceed(chain.request());
                         return originalResponse.newBuilder()

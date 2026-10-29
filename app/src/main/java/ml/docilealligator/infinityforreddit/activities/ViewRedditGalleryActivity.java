@@ -11,6 +11,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -55,6 +56,8 @@ import ml.docilealligator.infinityforreddit.font.TitleFontFamily;
 import ml.docilealligator.infinityforreddit.font.TitleFontStyle;
 import ml.docilealligator.infinityforreddit.fragments.ViewRedditGalleryImageOrGifFragment;
 import ml.docilealligator.infinityforreddit.fragments.ViewRedditGalleryVideoFragment;
+import ml.docilealligator.infinityforreddit.videoautoplay.ExoCreator;
+import ml.docilealligator.infinityforreddit.videoautoplay.NextClipPreloader;
 import ml.docilealligator.infinityforreddit.post.Post;
 import ml.docilealligator.infinityforreddit.resume.Restorable;
 import ml.docilealligator.infinityforreddit.resume.ResumeLaunchExtras;
@@ -85,6 +88,12 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
     SharedPreferences sharedPreferences;
     @Inject
     Executor executor;
+    @Inject
+    ExoCreator gifCreator;
+    @Nullable private NextClipPreloader gifPreloader;
+    private int readyGalleryPosition = -1;
+    private final Runnable preloadReadyGif = () -> preloadNextGalleryGif(readyGalleryPosition);
+
     @Nullable
     public Typeface typeface;
     private SectionsPagerAdapter sectionsPagerAdapter;
@@ -234,6 +243,43 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
         setupViewPager(savedInstanceState);
     }
 
+    public void stopGifPreload() {
+        if (binding != null) binding.viewPagerViewRedditGalleryActivity.removeCallbacks(preloadReadyGif);
+        if (gifPreloader != null) gifPreloader.stop();
+    }
+
+    /** Warm only the adjacent animation, after the visible page has its media. */
+    public void onGalleryMediaReady(int position) {
+        if (position != getCurrentPagePosition()) return;
+        readyGalleryPosition = position;
+        binding.viewPagerViewRedditGalleryActivity.removeCallbacks(preloadReadyGif);
+        // A cached image may report ready inside Fragment.onResume, before its host is RESUMED.
+        binding.viewPagerViewRedditGalleryActivity.post(preloadReadyGif);
+    }
+
+    private void preloadNextGalleryGif(int position) {
+        if (position < 0 || position != getCurrentPagePosition() || position + 1 >= gallery.size()
+                || !getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return;
+        String saving = sharedPreferences.getString(SharedPreferencesUtils.DATA_SAVING_MODE,
+                SharedPreferencesUtils.DATA_SAVING_MODE_OFF);
+        if (!sharedPreferences.getBoolean(SharedPreferencesUtils.GIF_AUTOPLAY, true)
+                || SharedPreferencesUtils.DATA_SAVING_MODE_ALWAYS.equals(saving)
+                || (SharedPreferencesUtils.DATA_SAVING_MODE_ONLY_ON_CELLULAR_DATA.equals(saving)
+                && Utils.getConnectedNetwork(this) != Utils.NETWORK_TYPE_WIFI)
+                || post.isSpoiler()
+                || (post.isNSFW() && !sharedPreferences.getBoolean(SharedPreferencesUtils.AUTOPLAY_NSFW_VIDEOS, true))) return;
+        Post.Gallery next = gallery.get(position + 1);
+        if (next.mediaType != Post.Gallery.TYPE_GIF || android.text.TextUtils.isEmpty(next.mp4Variant)) return;
+        if (gifPreloader == null) gifPreloader = gifCreator.createPreloader();
+        if (gifPreloader != null) gifPreloader.preload(Uri.parse(next.mp4Variant), 0, false);
+    }
+
+    @Override
+    protected void onPause() {
+        stopGifPreload();
+        super.onPause();
+    }
+
     private void setupViewPager(@Nullable Bundle savedInstanceState) {
         sectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
         binding.galleryPageIndicatorViewRedditGalleryActivity.setPageCount(gallery.size());
@@ -243,6 +289,7 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
                 new androidx.viewpager.widget.ViewPager.SimpleOnPageChangeListener() {
                     @Override
                     public void onPageSelected(int position) {
+                        stopGifPreload();
                         binding.galleryPageIndicatorViewRedditGalleryActivity.setCurrentPage(position);
                     }
                 }

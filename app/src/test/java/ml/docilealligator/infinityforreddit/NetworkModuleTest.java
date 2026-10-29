@@ -40,4 +40,15 @@ public class NetworkModuleTest {
 
         assertEquals("http://localhost/", titleSuggestion.baseUrl().toString());
     }
+
+    @Test
+    public void tokenExchangeKeepsBasicAuthAndRedditOriginWithConfiguredListingProxy() {
+        Retrofit listing = new Retrofit.Builder().baseUrl("https://private.example.ts.net:10443/")
+                .addConverterFactory(ScalarsConverterFactory.create()).build();
+        okhttp3.Request token = listing.create(ml.docilealligator.infinityforreddit.apis.RedditAPI.class)
+                .getAccessToken(java.util.Collections.singletonMap("Authorization", "Basic test-only"),
+                        java.util.Collections.singletonMap("grant_type", "authorization_code")).request();
+        assertEquals("https://www.reddit.com/api/v1/access_token", token.url().toString());
+        assertEquals("Basic test-only", token.header("Authorization"));
+    }
 }

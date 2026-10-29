@@ -80,3 +80,28 @@ Video zoom transforms the media surface while gesture coordinates and playback
 controls remain at their normal scale.
 Gallery preloading is bounded to the next preview and respects Data Saving;
 full-resolution image sources remain available on zoom.
+
+# Mandatory Reddit routing
+
+The anonymous reverse proxy remains the listing/media endpoint. A separate private
+CONNECT tunnel preserves end-to-end Reddit TLS for native requests that retain
+their origin, including login, uploads and downloads. `RedditRouting` installs a
+process proxy selector before ContentProviders initialize and supplies all OkHttp
+client builders. Reddit hosts have one route and no direct fallback; native DNS
+rejects an accidental direct Reddit route before a connection can be opened.
+The route uses the saved API endpoint host on port 10444, independent of the API
+override checkbox or generic proxy preference. Missing configuration fails closed.
+
+Chromium WebViews use their own process-wide proxy override, covering redirects,
+subresources, WebSockets and service-worker fetches. The custom WebView gates
+navigation/restoration and service-worker networking until the proxy callback.
+Unsupported providers block pages instead of using a direct connection. Custom
+Tabs and login stay in the internal WebView; explicitly leaving for another app
+is outside this app's routing boundary. Third-party hosts retain their ordinary
+routing. The Android and server host policies are checked for parity.
+
+See `deploy/reddit-proxy/TUNNEL.md` for server limits and private deployment.
+`RedditRoutingDeviceTest` verifies native HTTP, real Chromium subresources, service
+workers, redirects, tunnel refusal and recovery on a disposable emulator.
+`GalleryGifDeviceTest` checks rendered changing pixels, adjacent cached bytes,
+and swipe/pause cleanup using public GIF renditions supplied at run time.

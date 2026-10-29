@@ -500,6 +500,8 @@
     <string name="settings_resume_where_i_left_off_summary">Reopen on the same screen, at the same place, showing what was already loaded instead of refreshing. Takes precedence over Save Scrolled Position in HOME</string>
     <string name="settings_link_handler_title">Link Handler (Per-account)</string>
     <string name="settigns_video_title">Video</string>
+    <string name="settings_gif_autoplay_title">GIF autoplay</string>
+    <string name="settings_gif_autoplay_summary">Animate visible GIFs independently of videos. Paused by Data Saving; hidden media stays hidden.</string>
     <string name="settings_video_autoplay_title">Video Autoplay</string>
     <string name="settings_simultaneous_autoplay_limit_title">Simultaneous Autoplay Limit</string>
     <string name="settings_mute_autoplaying_videos_title">Mute Autoplaying Videos</string>
@@ -918,7 +920,7 @@
     <string name="settings_gestures_and_buttons_summary">Swipe gestures, volume key navigation, long-press actions, and gesture sensitivity</string>
     <string name="settings_security_summary">App lock, biometric or PIN, secure mode, and authentication to show accounts</string>
     <string name="settings_data_saving_mode_summary">Disable image previews and lower video resolution to use less data</string>
-    <string name="settings_proxy_summary">Route Reddit traffic through an HTTP or SOCKS proxy</string>
+    <string name="settings_proxy_summary">Optional proxy for other sites. Reddit always uses your private VPS.</string>
     <string name="settings_post_history_summary">Mark posts as read, limit read post history, and hide read posts</string>
     <string name="settings_over_18_and_spoiler_summary">Show or blur NSFW content and blur spoilers</string>
     <string name="settings_post_filter_summary">Create and manage filters that hide posts</string>
@@ -936,7 +938,7 @@
     <string name="settings_enable_api_key_overrides_summary">Use your custom API Base URL, Client ID, User Agent, and Redirect URI instead of the built-in defaults, which are RedReader</string>
     <string name="api_base_url_pref_key" translatable="false">api_base_url_pref_key</string>
     <string name="settings_api_base_url_title">Reddit API Base URL</string>
-    <string name="tap_to_set_api_base_url">Set an HTTPS endpoint for anonymous Reddit browsing</string>
+    <string name="tap_to_set_api_base_url">Set your private VPS HTTPS endpoint. Reddit connections require this VPS, including downloads and login.</string>
     <string name="default_api_base_url" translatable="false">https://www.reddit.com/</string>
     <string name="invalid_api_base_url">Enter an HTTPS URL without a username, password, query, or fragment</string>
     <string name="error_saving_api_base_url">Error saving API Base URL.</string>
@@ -2181,4 +2183,6 @@
     <string name="reminder_reliability_notice_device_settings_description">Some phones (like Xiaomi, Oppo, or Vivo) require you to turn on "Auto-start" or "Background App Launch" in your phone\'s system settings. Otherwise, reminders will stop working if your phone restarts.</string>
     <string name="reminder_set">Reminder set</string>
     <string name="reminder">Reminder</string>
+    <string name="reddit_external_browser_blocked">Reddit stays in this app so its connections use your VPS.</string>
+    <string name="reddit_proxy_webview_unavailable">Page blocked: a current Android System WebView and your private VPS endpoint are required. Update WebView and check the Reddit API Base URL setting.</string>
 </resources>

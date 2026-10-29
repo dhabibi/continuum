@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.services;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.app.Notification;
 import android.app.job.JobInfo;
 import android.app.job.JobParameters;
@@ -196,7 +197,7 @@ public class SubmitPostService extends JobService {
             boolean receivePostReplyNotifications = bundle.getInt(EXTRA_RECEIVE_POST_REPLY_NOTIFICATIONS, 1) == 1;
 
             Retrofit newAuthenticatorOauthRetrofit = mOauthRetrofit.newBuilder()
-                .client(new OkHttpClient.Builder()
+                .client(RedditRouting.clientBuilder(getApplicationContext())
                     .authenticator(new AnyAccountAccessTokenAuthenticator(APIUtils.getClientId(getApplicationContext()), mRetrofit, mRedditDataRoomDatabase, account, mCurrentAccountSharedPreferences))
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)

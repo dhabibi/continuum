@@ -1705,6 +1705,7 @@ public class ViewPostDetailFragmentNew extends Fragment implements FragmentCommu
         super.onResume();
         if (mPostAdapter != null) {
             mPostAdapter.setCanStartActivity(true);
+            mPostAdapter.setGifAutoplay(mSharedPreferences.getBoolean(SharedPreferencesUtils.GIF_AUTOPLAY, true));
         }
         if (mCommentsAdapter != null) {
             mCommentsAdapter.setCanStartActivity(true);

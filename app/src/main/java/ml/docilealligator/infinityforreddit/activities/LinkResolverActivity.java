@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.activities;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -841,6 +842,10 @@ public class LinkResolverActivity extends AppCompatActivity {
     }
 
     private void openInSpecificBrowser(Uri uri, PackageManager pm) {
+        if (RedditRouting.isRedditUrl(uri.toString())) {
+            openInWebView(uri);
+            return;
+        }
         String accountName = mCurrentAccountSharedPreferences.getString(SharedPreferencesUtils.ACCOUNT_NAME, "");
         String pkgKey = AccountScope.key(accountName, SharedPreferencesUtils.SPECIFIC_BROWSER_PACKAGE_BASE);
         String pkg = mSharedPreferences.getString(pkgKey, "");
@@ -859,6 +864,10 @@ public class LinkResolverActivity extends AppCompatActivity {
     }
 
     private void openInBrowser(Uri uri, PackageManager pm, boolean handleError) {
+        if (RedditRouting.isRedditUrl(uri.toString())) {
+            openInWebView(uri);
+            return;
+        }
         Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.setData(uri);
 
@@ -896,73 +905,9 @@ public class LinkResolverActivity extends AppCompatActivity {
     }
 
     private void openInCustomTabs(Uri uri, PackageManager pm, boolean handleError, boolean ephemeral) {
-        String selectedPackage = null;
-        if (ephemeral) {
-            String accountName = mCurrentAccountSharedPreferences.getString(SharedPreferencesUtils.ACCOUNT_NAME, "");
-            String ephemeralPkgKey = AccountScope.key(accountName, SharedPreferencesUtils.EPHEMERAL_CUSTOM_TAB_PACKAGE_BASE);
-            String preferredPackage = mSharedPreferences.getString(ephemeralPkgKey, "");
-            if (preferredPackage != null && !preferredPackage.isEmpty()
-                    && CustomTabsClient.isEphemeralBrowsingSupported(this, preferredPackage)) {
-                selectedPackage = preferredPackage;
-            } else {
-                // queryIntentActivities for http only returns the default browser
-                // on API 30+, so enumerate Custom Tabs services directly to find
-                // any installed browser that declares ephemeral support.
-                Intent svcQuery = new Intent(CustomTabsService.ACTION_CUSTOM_TABS_CONNECTION);
-                for (ResolveInfo info : pm.queryIntentServices(svcQuery, 0)) {
-                    if (info.serviceInfo == null) continue;
-                    String pkg = info.serviceInfo.packageName;
-                    if (CustomTabsClient.isEphemeralBrowsingSupported(this, pkg)) {
-                        selectedPackage = pkg;
-                        break;
-                    }
-                }
-            }
-            if (selectedPackage == null) {
-                // No installed Custom Tabs provider supports ephemeral browsing.
-                // Fall back to the internal WebView, which is closer in privacy
-                // posture than reusing the system browser session.
-                openInWebView(uri);
-                return;
-            }
-        } else {
-            ArrayList<ResolveInfo> resolveInfos = getCustomTabsPackages(pm);
-            if (!resolveInfos.isEmpty()) {
-                selectedPackage = resolveInfos.get(0).activityInfo.packageName;
-            }
-        }
-        if (selectedPackage != null) {
-            CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
-            // add share action to menu list
-            builder.setShareState(CustomTabsIntent.SHARE_STATE_ON);
-            builder.setDefaultColorSchemeParams(
-                    new CustomTabColorSchemeParams.Builder()
-                            .setToolbarColor(mCustomThemeWrapper.getColorPrimary())
-                            .build());
-            if (ephemeral) {
-                builder.setEphemeralBrowsingEnabled(true);
-            }
-            CustomTabsIntent customTabsIntent = builder.build();
-            customTabsIntent.intent.setPackage(selectedPackage);
-            if (uri.getScheme() == null) {
-                uri = Uri.parse("http://" + uri);
-            }
-            try {
-                customTabsIntent.launchUrl(this, uri);
-            } catch (ActivityNotFoundException e) {
-                if (handleError) {
-                    openInBrowser(uri, pm, false);
-                } else {
-                    openInWebView(uri);
-                }
-            }
-        } else {
-            if (handleError) {
-                openInBrowser(uri, pm, false);
-            } else {
-                openInWebView(uri);
-            }
-        }
+        // A non-Reddit page can redirect to Reddit later. Browser Custom Tabs cannot inherit
+        // this process's proxy, so all browsing presented inside the app uses the guarded WebView.
+        openInWebView(uri);
     }
 
     private void openInWebView(Uri uri) {

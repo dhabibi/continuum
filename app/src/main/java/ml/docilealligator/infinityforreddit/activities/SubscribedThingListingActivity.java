@@ -1,5 +1,6 @@
 package ml.docilealligator.infinityforreddit.activities;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -243,7 +244,7 @@ public class SubscribedThingListingActivity extends BaseActivity
                 accountName = specifiedAccount.getAccountName();
                 mAccountProfileImageUrl = specifiedAccount.getProfileImageUrl();
 
-                mOauthRetrofit = mOauthRetrofit.newBuilder().client(new OkHttpClient.Builder().authenticator(new AnyAccountAccessTokenAuthenticator(APIUtils.getClientId(getApplicationContext()), mRetrofit, mRedditDataRoomDatabase, specifiedAccount, mCurrentAccountSharedPreferences))
+                mOauthRetrofit = mOauthRetrofit.newBuilder().client(RedditRouting.clientBuilder(getApplicationContext()).authenticator(new AnyAccountAccessTokenAuthenticator(APIUtils.getClientId(getApplicationContext()), mRetrofit, mRedditDataRoomDatabase, specifiedAccount, mCurrentAccountSharedPreferences))
                                 .connectTimeout(30, TimeUnit.SECONDS)
                                 .readTimeout(30, TimeUnit.SECONDS)
                                 .writeTimeout(30, TimeUnit.SECONDS)

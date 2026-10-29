@@ -1151,6 +1151,14 @@ public abstract class PostFragmentBase extends Fragment {
     }
 
     @Subscribe
+    public void onChangeGifAutoplayEvent(ml.docilealligator.infinityforreddit.events.ChangeGifAutoplayEvent event) {
+        if (getPostAdapter() != null) {
+            getPostAdapter().setGifAutoplay(event.enabled);
+            refreshAdapter();
+        }
+    }
+
+    @Subscribe
     public void onChangeVideoAutoplayEvent(ChangeVideoAutoplayEvent changeVideoAutoplayEvent) {
         if (getPostAdapter() != null) {
             boolean autoplay = false;

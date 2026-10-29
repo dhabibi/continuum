@@ -64,6 +64,12 @@
         app:title="@string/settings_video_autoplay_title"
         app:useSimpleSummaryProvider="true" />
 
+    <ml.docilealligator.infinityforreddit.customviews.preference.CustomFontSwitchPreference
+        app:defaultValue="true"
+        app:key="gif_autoplay"
+        app:title="@string/settings_gif_autoplay_title"
+        app:summary="@string/settings_gif_autoplay_summary" />
+
     <ml.docilealligator.infinityforreddit.customviews.preference.CustomFontListPreference
         app:defaultValue="1"
         android:entries="@array/settings_simultaneous_autoplay_limit"

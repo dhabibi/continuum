@@ -47,8 +47,10 @@ jobs:
           umask 077
           mkdir -p "$HOME/.android"
           printf '%s' "$CONTINUUM_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+      - name: Check private tunnel and routing policy
+        run: python3 -m unittest discover -s deploy/reddit-proxy -p test_reddit_tunnel.py
       - name: Check import and media regressions
-        run: ./gradlew :app:testDebugUnitTest --tests '*LegacyMultiredditLinkTest' --tests '*LocalSubscriptionImportTest' --tests '*LocalProfilesTest' --tests '*LocalMultiredditTransferTest' --tests '*LocalMultiredditMembershipTest' --tests '*MediaPreloadBudgetTest' --tests '*InlineGifVideoPlayerTest' --tests '*HomeAutoplayTest' --tests '*AutoplayLifecycleTest' --tests '*PreloadWindowTest' --tests '*ImagePreviewSelectorTest' --tests '*ParsePostGalleryTest' --tests '*ParsePostVideoHostTest' --tests '*ParsePostImageHostTest' --tests '*ShadowboxLayoutCaptureTest' --tests '*TikTokPaginationTest' --tests '*TikTokPagerLifecycleTest' --tests '*ShadowboxVideoBufferTest' --tests '*ShadowboxSoundOnlyProbeTest' --tests '*MultiredditFrontPageTest' --tests '*ImageZoomConfigurationTest' --tests '*StandaloneFeedTest' --no-daemon --max-workers=2
+        run: ./gradlew :app:testDebugUnitTest --tests '*LegacyMultiredditLinkTest' --tests '*LocalSubscriptionImportTest' --tests '*LocalProfilesTest' --tests '*LocalMultiredditTransferTest' --tests '*LocalMultiredditMembershipTest' --tests '*MediaPreloadBudgetTest' --tests '*InlineGifVideoPlayerTest' --tests '*FeedGifAutoplayTest' --tests '*GalleryGifPlaybackTest' --tests '*GalleryGifViewerTest' --tests '*RedditProxySelectorTest' --tests '*RedditRoutingTest' --tests '*RedditWebViewProxyTest' --tests '*NetworkModuleTest' --tests '*HomeAutoplayTest' --tests '*AutoplayLifecycleTest' --tests '*PreloadWindowTest' --tests '*ImagePreviewSelectorTest' --tests '*ParsePostGalleryTest' --tests '*ParsePostVideoHostTest' --tests '*ParsePostImageHostTest' --tests '*ShadowboxLayoutCaptureTest' --tests '*TikTokPaginationTest' --tests '*TikTokPagerLifecycleTest' --tests '*ShadowboxVideoBufferTest' --tests '*ShadowboxSoundOnlyProbeTest' --tests '*MultiredditFrontPageTest' --tests '*ImageZoomConfigurationTest' --tests '*StandaloneFeedTest' --no-daemon --max-workers=2
       - name: Upload Shadowbox layout previews
         uses: actions/upload-artifact@v4
         with:

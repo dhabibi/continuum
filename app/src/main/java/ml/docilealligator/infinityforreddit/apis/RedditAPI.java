@@ -27,7 +27,7 @@ import retrofit2.http.Query;
 
 public interface RedditAPI {
     @FormUrlEncoded
-    @POST("api/v1/access_token")
+    @POST("https://www.reddit.com/api/v1/access_token")
     Call<String> getAccessToken(@HeaderMap Map<String, String> headers, @FieldMap Map<String, String> params);
 
     @GET("r/{subredditName}/about.json?raw_json=1")

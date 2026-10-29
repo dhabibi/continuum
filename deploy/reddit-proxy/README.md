@@ -2,9 +2,11 @@
 
 The app patch adds **Settings → API Keys → Reddit API Base URL**. Enable overrides,
 enter the Tailscale HTTPS endpoint, and leave the page to apply the existing app
-restart. Select Anonymous browsing. The proxy uses an anonymous Android identity;
-it does not log into a Reddit account or provide account actions. Third-party
-media hosts keep their ordinary direct connections.
+restart. Select Anonymous browsing. The listing proxy uses an anonymous Android identity. The separate private
+[CONNECT tunnel](TUNNEL.md) carries original Reddit HTTPS requests, including
+authentication and downloads, without replacing credentials or decrypting TLS.
+All Reddit connections in the app require the VPS; failures do not fall back to
+direct access. Third-party hosts keep their ordinary routing.
 
 A small OkHttp interceptor also routes Reddit CDN URLs synthesized by the app.
 Markdown body/selftext retain their original URLs so Continuum can recognize

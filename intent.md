@@ -112,3 +112,10 @@ controls and signed update delivery.
 Daniel prefers launching TikTok from a loaded feed's three-dot menu, avoiding the
 sidebar's source chooser and typing. Both TikTok and TikTok with sound must be
 available there and inherit the current subreddit/multireddit and sort selection.
+
+On October 29 Daniel requested a separate GIF autoplay setting, enabled by default,
+and streaming/preloading for GIFs inside multi-image galleries. Preserve still
+images, original downloads, zoom, lifecycle cleanup and Data Saving behavior.
+Every Reddit connection inside the app must use the VPS and fail closed when
+unavailable, including login, downloads, redirects, and internal browsing.
+Deliver the combined update through the existing persistent signing workflow.

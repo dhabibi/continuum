@@ -11,7 +11,7 @@ import ml.docilealligator.infinityforreddit.videoautoplay.widget.Container
 /**
  * Autoplay for the gifs inside a gallery post's pager (issue #382).
  *
- * Those gifs are Glide drawables rather than players, but they take part in the same coordination
+ * GIFs use silent MP4 players or original Glide drawables and take part in the same coordination
  * as autoplaying videos — the visible-area threshold and Settings -> Video -> "Simultaneous
  * autoplay limit" — by presenting the gallery itself as a [ToroPlayer], so a gif and a video can
  * never both play when the limit is one. Nothing here touches volume: gifs carry no audio.

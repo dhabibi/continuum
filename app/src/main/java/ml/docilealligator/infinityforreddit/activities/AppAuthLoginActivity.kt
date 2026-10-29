@@ -8,9 +8,6 @@ import android.text.util.Linkify
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.ActivityResultLauncher
-import androidx.browser.auth.AuthTabIntent
-import androidx.browser.customtabs.CustomTabsClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,7 +41,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,7 +57,6 @@ import ml.docilealligator.infinityforreddit.customviews.compose.ThemedTopAppBar
 import ml.docilealligator.infinityforreddit.events.NewUserLoggedInEvent
 import ml.docilealligator.infinityforreddit.extensions.linkify
 import ml.docilealligator.infinityforreddit.utils.APIUtils
-import ml.docilealligator.infinityforreddit.utils.getChromeCustomTabPackageName
 import ml.docilealligator.infinityforreddit.viewmodels.AppAuthLoginViewModel
 import ml.docilealligator.infinityforreddit.viewmodels.AppAuthLoginViewModel.Companion.provideFactory
 import org.greenrobot.eventbus.EventBus
@@ -92,9 +87,6 @@ class AppAuthLoginActivity : BaseActivity() {
     lateinit var mCustomThemeWrapper: CustomThemeWrapper
 
     lateinit var mViewModel: AppAuthLoginViewModel
-
-    private val mLauncher: ActivityResultLauncher<Intent?> =
-        AuthTabIntent.registerActivityResultLauncher(this, this::handleAuthResult)
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -207,27 +199,7 @@ class AppAuthLoginActivity : BaseActivity() {
 
                         Spacer(modifier = Modifier.weight(1f))
 
-                        PrimaryText(
-                            stringResource(R.string.login_using_different_method)
-                        )
 
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            CustomFilledButton(stringResId = R.string.login_using_chrome_custom_tab) {
-                                if (getChromeCustomTabPackageName(context) == null) {
-                                    Toast.makeText(context, R.string.login_chrome_required, Toast.LENGTH_SHORT).show()
-                                } else {
-                                    startActivity(Intent(context, LoginChromeCustomTabActivity::class.java))
-                                    finish()
-                                }
-                            }
-
-                            CustomFilledButton(stringResId = R.string.login_using_webview) {
-                                startActivity(Intent(context, LoginActivity::class.java))
-                                finish()
-                            }
-                        }
                     }
                 }
             }
@@ -251,37 +223,8 @@ class AppAuthLoginActivity : BaseActivity() {
     }
 
     private fun launchAuthTab() {
-        getChromeCustomTabPackageName(this)?.let {
-            if (!CustomTabsClient.isAuthTabSupported(this, it)) {
-                startActivity(Intent(this, LoginActivity::class.java))
-                finish()
-                return
-            }
-
-            val baseUri = APIUtils.OAUTH_URL.toUri()
-            val uriBuilder = baseUri.buildUpon()
-            uriBuilder.appendQueryParameter(APIUtils.CLIENT_ID_KEY, APIUtils.getClientId(this))
-            uriBuilder.appendQueryParameter(APIUtils.RESPONSE_TYPE_KEY, APIUtils.RESPONSE_TYPE)
-            uriBuilder.appendQueryParameter(APIUtils.STATE_KEY, APIUtils.STATE)
-            uriBuilder.appendQueryParameter(APIUtils.REDIRECT_URI_KEY, APIUtils.REDIRECT_URI)
-            uriBuilder.appendQueryParameter(APIUtils.DURATION_KEY, APIUtils.DURATION)
-            uriBuilder.appendQueryParameter(APIUtils.SCOPE_KEY, APIUtils.SCOPE)
-
-            val authTabIntent = AuthTabIntent.Builder().setEphemeralBrowsingEnabled(true).build()
-            authTabIntent.launch(mLauncher, uriBuilder.build(), "infinity")
-        }
-    }
-
-    private fun handleAuthResult(result: AuthTabIntent.AuthResult) {
-        result.resultCode
-        when (result.resultCode) {
-            AuthTabIntent.RESULT_OK -> result.resultUri?.let {
-                mViewModel.setUpAccount(it)
-            }
-            AuthTabIntent.RESULT_CANCELED,
-            AuthTabIntent.RESULT_VERIFICATION_FAILED -> mViewModel.setError(R.string.login_failed_auth_result_verification_failed)
-            AuthTabIntent.RESULT_VERIFICATION_TIMED_OUT -> mViewModel.setError(R.string.login_failed_auth_result_verification_timed_out)
-            else -> mViewModel.setError(R.string.login_failed_auth_result_unknown_error)
-        }
+        // Browser processes do not inherit this app's mandatory VPS route.
+        startActivity(Intent(this, LoginActivity::class.java))
+        finish()
     }
 }

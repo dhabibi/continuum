@@ -16,6 +16,7 @@
 
 package ml.docilealligator.infinityforreddit.videoautoplay;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import static ml.docilealligator.infinityforreddit.videoautoplay.ToroExo.with;
 import static ml.docilealligator.infinityforreddit.videoautoplay.ToroUtil.checkNotNull;
 
@@ -28,7 +29,7 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
-import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
@@ -74,7 +75,7 @@ public class DefaultExoCreator implements ExoCreator, MediaSourceEventListener {
 
         DataSource.Factory baseFactory = config.dataSourceFactory;
         if (baseFactory == null) {
-            baseFactory = new DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent(APIUtils.USER_AGENT);
+            baseFactory = new OkHttpDataSource.Factory(RedditRouting.clientBuilder(this.toro.context).build()).setUserAgent(APIUtils.USER_AGENT);
         }
         upstreamDataSourceFactory = baseFactory;
         DataSource.Factory factory = new DefaultDataSource.Factory(this.toro.context, baseFactory);

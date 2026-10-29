@@ -28,14 +28,14 @@ interface RedditAPIKt {
     ): String
 
     @FormUrlEncoded
-    @POST("/api/v1/access_token")
+    @POST("https://www.reddit.com/api/v1/access_token")
     suspend fun getAccessToken(
         @HeaderMap headers: Map<String, String>,
         @FieldMap params: Map<String, String>
     ): String
 
     @FormUrlEncoded
-    @POST("/api/v1/access_token")
+    @POST("https://www.reddit.com/api/v1/access_token")
     fun getAnonymousAccessToken(
         @HeaderMap headers: Map<String, String>,
         @FieldMap params: Map<String, String>

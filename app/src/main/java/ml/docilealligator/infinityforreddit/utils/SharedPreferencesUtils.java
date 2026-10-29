@@ -134,6 +134,7 @@ public class SharedPreferencesUtils {
     public static final String SPECIFIC_BROWSER_PACKAGE_BASE = "_specific_browser_package";
     public static final String USE_OLD_REDDIT_DOMAIN = "use_old_reddit_domain";
     public static final String PLAY_SHORT_CLIP_HOSTS_INLINE = "play_short_clip_hosts_inline";
+    public static final String GIF_AUTOPLAY = "gif_autoplay";
     public static final String VIDEO_AUTOPLAY = "video_autoplay";
     public static final String VIDEO_AUTOPLAY_VALUE_ALWAYS_ON = "2";
     public static final String VIDEO_AUTOPLAY_VALUE_ON_WIFI = "1";

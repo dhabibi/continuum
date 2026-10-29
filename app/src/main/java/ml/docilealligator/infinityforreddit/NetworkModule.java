@@ -1,13 +1,12 @@
 package ml.docilealligator.infinityforreddit;
 
+import ml.docilealligator.infinityforreddit.network.RedditRouting;
 import android.content.Context;
 import android.content.SharedPreferences;
 import androidx.annotation.NonNull;
 import dagger.Module;
 import dagger.Provides;
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -40,11 +39,10 @@ abstract class NetworkModule {
     @Provides
     @Named("base")
     @Singleton
-    static OkHttpClient provideBaseOkhttp(Context context, @Named("proxy") SharedPreferences mProxySharedPreferences,
+    static OkHttpClient provideBaseOkhttp(Context context,
                                           ApiCallTracker apiCallTracker) {
-        boolean proxyEnabled = mProxySharedPreferences.getBoolean(SharedPreferencesUtils.PROXY_ENABLED, false);
 
-        var builder = new OkHttpClient.Builder()
+        var builder = RedditRouting.clientBuilder(context)
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
@@ -68,17 +66,6 @@ abstract class NetworkModule {
             builder.addInterceptor(new RedditMediaProxyInterceptor(mediaProxyBase));
         }
 
-        if (proxyEnabled) {
-            Proxy.Type proxyType = Proxy.Type.valueOf(mProxySharedPreferences.getString(SharedPreferencesUtils.PROXY_TYPE, "HTTP"));
-            if (proxyType != Proxy.Type.DIRECT) {
-                String proxyHost = mProxySharedPreferences.getString(SharedPreferencesUtils.PROXY_HOSTNAME, "127.0.0.1");
-                int proxyPort = SharedPreferencesUtils.getInt(mProxySharedPreferences, SharedPreferencesUtils.PROXY_PORT, "1080");
-
-                InetSocketAddress proxyAddr = InetSocketAddress.createUnresolved(proxyHost, proxyPort);
-                Proxy proxy = new Proxy(proxyType, proxyAddr);
-                builder.proxy(proxy);
-            }
-        }
 
         return builder.build();
     }

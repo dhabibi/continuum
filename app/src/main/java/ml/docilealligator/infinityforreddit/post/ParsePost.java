@@ -622,7 +622,7 @@ public class ParsePost {
                                     .getJSONObject(JSONUtils.VARIANTS_KEY).getJSONObject(JSONUtils.MP4_KEY)
                                     .getJSONObject(JSONUtils.SOURCE_KEY).getString(JSONUtils.URL_KEY);
                             if (!mp4Variant.isEmpty()) {
-                                post.setMp4Variant(mp4Variant);
+                                post.setMp4Variant(Html.fromHtml(mp4Variant).toString());
                             }
                         } catch (Exception ignore) {
                             Log.d("ParsePost", "parseData: ignoring Exception", ignore);
@@ -839,6 +839,13 @@ public class ParsePost {
 
                         Post.Gallery postGalleryItem = new Post.Gallery(mimeType, galleryItemUrl, "", subredditName + "-" + galleryId + "." + mimeType.substring(mimeType.lastIndexOf("/") + 1), galleryItemCaption, galleryItemCaptionUrl);
 
+                        if (postGalleryItem.mediaType == Post.Gallery.TYPE_GIF) {
+                            String mp4 = sourceObject.optString(JSONUtils.MP4_KEY);
+                            if (!mp4.isEmpty()) {
+                                postGalleryItem.mp4Variant = Html.fromHtml(mp4).toString();
+                            }
+                        }
+
                         // For issue #558
                         // Construct a fallback image url
                         if (isStillImage) {
@@ -852,8 +859,8 @@ public class ParsePost {
                         // keeps the result in Glide's memory cache far longer. For GIFs/videos the
                         // `p` previews are static stills, which is what the feed shows until gif
                         // autoplay picks that tile — only then is the source (often tens of MB)
-                        // loaded, for that one tile. The full-screen media view is unaffected: it
-                        // always loads `url` (the source) directly, never feedPreviewUrl.
+                        // loaded for that tile when no streaming rendition is available. Originals
+                        // stay available for full-resolution stills, sharing and downloads.
                         JSONArray previewsArray = singleGalleryObject.optJSONArray(JSONUtils.P_KEY);
                         if (previewsArray != null) {
                             String bestPreviewUrl = null;

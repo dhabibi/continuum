@@ -166,15 +166,7 @@ public class LoginActivity extends BaseActivity {
             recreate();
         });
 
-        binding.fabLoginActivity.setOnClickListener(view -> {
-            if (getChromeCustomTabPackageName(this) == null) {
-                Toast.makeText(this, R.string.login_chrome_required, Toast.LENGTH_SHORT).show();
-            } else {
-                Intent intent = new Intent(this, LoginChromeCustomTabActivity.class);
-                startActivity(intent);
-                finish();
-            }
-        });
+        binding.fabLoginActivity.setVisibility(View.GONE);
 
         CookieManager.getInstance().removeAllCookies(aBoolean -> {
         });

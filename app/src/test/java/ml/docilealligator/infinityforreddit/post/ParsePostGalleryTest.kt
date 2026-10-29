@@ -70,6 +70,26 @@ class ParsePostGalleryTest {
     }
 
     @Test
+    fun `animated gallery preserves original and streaming rendition across parcel`() {
+        val gif = media("animation", "image/gif").apply {
+            getJSONObject("s").put("mp4", "https://preview.redd.it/animation.gif?format=mp4&amp;s=signed")
+        }
+        val item = ParsePost.parseBasicData(postJson("animation" to gif)).gallery.single()
+        assertEquals(Post.Gallery.TYPE_GIF, item.mediaType)
+        assertEquals("https://i.redd.it/animation.gif", item.url)
+        assertEquals("https://preview.redd.it/animation.gif?format=mp4&s=signed", item.mp4Variant)
+        val parcel = android.os.Parcel.obtain()
+        try {
+            item.writeToParcel(parcel, 0)
+            parcel.setDataPosition(0)
+            val restored = Post.Gallery.CREATOR.createFromParcel(parcel)
+            assertEquals(item.url, restored.url)
+            assertEquals(item.mp4Variant, restored.mp4Variant)
+            assertEquals(item.feedPreviewUrl, restored.feedPreviewUrl)
+        } finally { parcel.recycle() }
+    }
+
+    @Test
     fun `four JPEG images remain a gallery with previews and image viewer types`() {
         val post = ParsePost.parseBasicData(postJson(
             *(1..4).map { "image$it" to media("image$it", "image/jpeg") }.toTypedArray()

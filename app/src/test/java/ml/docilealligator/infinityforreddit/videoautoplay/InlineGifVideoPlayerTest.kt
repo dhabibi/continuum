@@ -55,13 +55,36 @@ class InlineGifVideoPlayerTest {
     }
 
     @Test
+    fun `streamed gallery gif follows image zoom and pan on each draw`() {
+        image.scaleType = ImageView.ScaleType.MATRIX
+        image.setImageDrawable(android.graphics.drawable.GradientDrawable().apply { setSize(100, 50) })
+        image.imageMatrix = Matrix().apply { setScale(4f, 4f); postTranslate(-20f, -10f) }
+        val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, {})!!
+        val listener = argumentCaptor<Player.Listener>()
+        verify(player).addListener(listener.capture())
+        listener.firstValue.onVideoSizeChanged(VideoSize(100, 50))
+        val texture = parent.getChildAt(0) as TextureView
+        val values = FloatArray(9)
+        texture.getTransform(Matrix()).getValues(values)
+        assertEquals(2f, values[Matrix.MSCALE_X], 0.001f)
+        assertEquals(-20f, values[Matrix.MTRANS_X], 0.001f)
+        image.imageMatrix = Matrix().apply { setScale(2f, 2f) }
+        image.viewTreeObserver.dispatchOnPreDraw()
+        texture.getTransform(Matrix()).getValues(values)
+        assertEquals(1f, values[Matrix.MSCALE_X], 0.001f)
+        assertEquals(0f, values[Matrix.MTRANS_X], 0.001f)
+        helper.release()
+    }
+
+    @Test
     fun `mp4 stays silent and keeps thumbnail and badges until its first frame`() {
         var ready = 0
         val helper = InlineGifVideoPlayer.create(image, uri, creator, {}, { ready++ })!!
-        val texture = parent.getChildAt(1) as TextureView
-        assertSame(image, parent.getChildAt(0))
+        val texture = parent.getChildAt(0) as TextureView
+        assertSame(image, parent.getChildAt(1))
         assertSame(badge, parent.getChildAt(2))
-        assertEquals(0f, texture.alpha, 0f)
+        assertEquals(1f, texture.alpha, 0f)
+        assertEquals(1f, image.alpha, 0f)
         assertFalse(texture.isClickable)
         verify(player).volume = 0f
         verify(player).repeatMode = Player.REPEAT_MODE_ONE
@@ -72,11 +95,45 @@ class InlineGifVideoPlayerTest {
         verify(player).addListener(listener.capture())
         listener.firstValue.onRenderedFirstFrame()
         assertEquals(1f, texture.alpha, 0f)
+        assertEquals(0f, image.alpha, 0f)
         assertEquals(1, ready)
         helper.release()
         helper.release()
         assertEquals(2, parent.childCount)
+        assertEquals(1f, image.alpha, 0f)
         verify(player, times(1)).release()
+    }
+
+    @Test
+    fun `unmeasured gallery page retains layout size and thumbnail until its first frame`() {
+        val context = image.context
+        val unmeasuredParent = FrameLayout(context)
+        val unmeasuredImage = ImageView(context).apply { alpha = 0.7f }
+        unmeasuredParent.addView(unmeasuredImage,
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, 240))
+        val helper = InlineGifVideoPlayer.create(unmeasuredImage, uri, creator, {}, {})!!
+        val texture = unmeasuredParent.getChildAt(0) as TextureView
+        assertEquals(0, unmeasuredImage.width)
+        assertEquals(FrameLayout.LayoutParams.MATCH_PARENT, texture.layoutParams.width)
+        assertEquals(240, texture.layoutParams.height)
+        assertEquals(1f, texture.alpha, 0f)
+        assertEquals(0.7f, unmeasuredImage.alpha, 0f)
+        assertSame(unmeasuredImage, unmeasuredParent.getChildAt(1))
+
+        // No decoder callback is needed to obtain a usable surface size.
+        unmeasuredParent.measure(View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(240, View.MeasureSpec.EXACTLY))
+        unmeasuredParent.layout(0, 0, 320, 240)
+        assertEquals(320, texture.width)
+        assertEquals(240, texture.height)
+        assertEquals(0.7f, unmeasuredImage.alpha, 0f)
+        val listener = argumentCaptor<Player.Listener>()
+        verify(player).addListener(listener.capture())
+        listener.firstValue.onRenderedFirstFrame()
+        assertEquals(0f, unmeasuredImage.alpha, 0f)
+        helper.release()
+        assertEquals(0.7f, unmeasuredImage.alpha, 0f)
+        assertSame(unmeasuredImage, unmeasuredParent.getChildAt(0))
     }
 
     @Test
@@ -105,7 +162,7 @@ class InlineGifVideoPlayerTest {
         verify(player).addListener(listener.capture())
         listener.firstValue.onVideoSizeChanged(VideoSize(100, 100))
         val values = FloatArray(9)
-        (parent.getChildAt(1) as TextureView).getTransform(Matrix()).getValues(values)
+        (parent.getChildAt(0) as TextureView).getTransform(Matrix()).getValues(values)
         assertEquals(0.5f, values[Matrix.MSCALE_X], 0.001f)
         assertEquals(1f, values[Matrix.MSCALE_Y], 0.001f)
         assertEquals(0f, values[Matrix.MTRANS_X], 0.001f)

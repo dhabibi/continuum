@@ -19,6 +19,18 @@
         app:optimizeDisplay="true"
         app:tapToRetry="false" />
 
+    <FrameLayout
+        android:id="@+id/gif_video_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <ml.docilealligator.infinityforreddit.customviews.ZoomableGifImageView
+            android:id="@+id/gif_video_preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
+
     <LinearLayout
         android:id="@+id/load_image_error_linear_layout_view_reddit_gallery_image_or_gif_fragment"
         android:layout_width="match_parent"
