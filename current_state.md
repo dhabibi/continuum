@@ -1,49 +1,39 @@
 # Current state
 
-October 29, 2026: v16 hotfix is published at the existing private APK endpoint.
-APK/source commit: d3028323888456c2ef6285c01a123d29d7a7bfe4.
-Signed CI: https://github.com/dhabibi/continuum/actions/runs/40968773959 (passed).
-Package org.cygnusx1.continuum.proxy; 8.3.1.8-vps.16-debug; versionCode 245.
-Signing certificate: c0e2f382bef12fdc2d9ad06e20b80e4d596c79b584ee8fbb70fd5e4bf79787b7.
-Private links/hashes: ../outputs/continuum/INSTALL-v16.txt and SHA256SUMS-v16.txt.
-Install over the existing app with Tailscale connected. Refresh existing feeds once
-so cached posts gain the new GIF metadata; no uninstall or settings reset.
+November 18, 2026. Continuum Proxy v17 is published at the private APK endpoint.
+APK source and release main: fc734a7f74226ef111ec6ecd595ecd977e43b522.
+Signed CI run: https://github.com/dhabibi/continuum/actions/runs/44257394274.
+Package org.cygnusx1.continuum.proxy, version 8.3.1.8-vps.17-debug, versionCode 246.
+Signing certificate SHA-256: c0e2f382bef12fdc2d9ad06e20b80e4d596c79b584ee8fbb70fd5e4bf79787b7.
+Private links and hashes: ../outputs/continuum/INSTALL-v17.txt and SHA256SUMS-v17.txt.
+Both architectures passed signature, ZIP, server-side SHA-256 and HTTPS range checks.
+The signed ARM64 APK installed over signed v16 on Android 16 and retained an app-private file.
 
-## v16 hotfix verification
+## Viewer verification
 
-Daniel reported v15 crashing seconds after opening and possible unwanted video autoplay.
-Reproduced v15 on Android 16: preloading called ExoPlayerViewHelper.getPlayer before
-lazy player allocation, throwing in VideoAutoplayImpl.isBuffering. Buffering queries
-now use a lifecycle-safe predicate, including before play and after release.
-Unbound video rows also remain ineligible without dereferencing a missing post.
+TikTok gallery GIFs use the available MP4 with original-GIF fallback. On Android 16
+the visible GIF rendered a frame, released on swipe, and resumed on return.
+The local media server saw one poster request and no original GIF request on
+that path. A neighboring post's original photo arrived only after selection.
 
-GIF preview metadata no longer marks a full external video as an animation.
-Only native GIF metadata or an explicit original GIF/GIFV source qualifies, and
-cached v15 flags require a verified rendition marker before overriding video autoplay.
-No cache deletion, preference reset or new Parcel format was introduced.
+The regular viewer downloads one distinct, bounded next-image preview after the
+current media is ready. With 150 ms preview latency and 750 ms original latency,
+the next picture appeared within 56 ms on v17, versus 207–209 ms cold on v16.
+Full-resolution readiness stayed near 0.84 s. Data Saving suppressed the prefetch.
 
-118 release regressions passed. The same mixed-video feed survived startup, scroll,
-background and resume with autoplay enabled. A fresh launch with Video autoplay Never
-remained alive and showed ordinary VIDEO posts without autoplay player/control nodes.
-V15 gallery geometry, gestures and raw-GIF playback repairs remain unchanged.
-Signed CI passed. Both APKs passed identity/signature/ZIP, remote full-hash, and
-HTTPS byte-range/type/size verification. Physical phone confirmation is pending.
-Evidence: .scratch/v16-verification/.
+Across 18 controlled TikTok swipes per build, median app-process PSS was 236.9 MiB
+on v16 and 230.3 MiB on v17. V16 retained up to five video players; v17 kept
+the current page and its immediate neighbors (three). Forward median time to
+visible playback was 130/125 ms (v16/v17); backward median was 55/90 ms.
+The separate single-player experiment delayed visible playback in both viewers.
 
-## Android CLI setup
-
-Official Homebrew Android CLI 1.1.16717390 is installed; global/project Codex skills
-are installed, with commands in AGENTS.md. Existing JDK 25 and SDK 37 are reused.
-Java registration, ignored local.properties and ~/.androidrc are configured.
-Describe, build, run, layout, screenshot, input and docs lookup worked. The app and
-lint-checks modules and all four variants were inspected; debug was built/tested.
-The reusable medium_phone Android 16 ARM64 emulator is stopped; its image is retained.
-Android Studio is not installed and was not required. No setup intervention remains.
+Sound-only pagination displayed the retry message after an HTTP 503 and the empty
+message on exhaustion. The spinner disappeared in both cases. All 126 Android
+release regressions and 15 tunnel-policy checks passed. Logs: .scratch/v17-verification/.
 
 ## Return point
 
-Daniel installs v16 over v15 and checks startup and autoplay on the phone.
-Normal videos retain the existing Video autoplay preference; choose Never to disable them.
-VPS services/routing were unchanged; no server restart. Comments remain excluded.
-Prior phone crash reports and arbitrary WebRTC UDP enforcement are not claimed fixed.
-The canonical intent.md owner draft and .serena/ remain preserved and uncommitted.
+Install v17 over v16 on the phone and check long gallery/TikTok sessions with
+Daniel's usual feeds. Physical-device crash and performance confirmation is open.
+Source and device commands are in AGENTS.md. The existing JDK 25, SDK 37 and
+medium_phone Android 16 emulator support local verification.
