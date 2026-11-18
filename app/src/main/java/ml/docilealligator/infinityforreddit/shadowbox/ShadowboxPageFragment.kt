@@ -32,6 +32,7 @@ import ml.docilealligator.infinityforreddit.utils.Utils
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import java.util.concurrent.Executor
+import ml.docilealligator.infinityforreddit.videoautoplay.ExoCreator
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -44,6 +45,9 @@ import javax.inject.Named
  */
 @OptIn(UnstableApi::class)
 abstract class ShadowboxPageFragment : Fragment() {
+
+    @Inject
+    lateinit var exoCreator: ExoCreator
 
     @Inject
     @Named("default")

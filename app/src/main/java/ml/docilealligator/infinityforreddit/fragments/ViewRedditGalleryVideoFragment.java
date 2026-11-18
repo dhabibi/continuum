@@ -155,6 +155,11 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
         rotatableVideoView = binding.getPlayerView().getVideoSurfaceView();
         player.addListener(new Player.Listener() {
             @Override
+            public void onRenderedFirstFrame() {
+                if (isResumed()) activity.onGalleryMediaReady(requireArguments().getInt(EXTRA_INDEX));
+            }
+
+            @Override
             public void onVideoSizeChanged(@NonNull VideoSize videoSize) {
                 if (currentRotation != 0) {
                     applyRotation();
@@ -466,6 +471,9 @@ public class ViewRedditGalleryVideoFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (player.getPlaybackState() == Player.STATE_READY) {
+            activity.onGalleryMediaReady(requireArguments().getInt(EXTRA_INDEX));
+        }
         if (wasPlaying) {
             player.setPlayWhenReady(true);
         }

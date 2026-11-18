@@ -86,12 +86,8 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
      */
     private var resumePositionMs = C.TIME_UNSET
 
-    /**
-     * Set by [releaseMedia] when it let a player go, so [restoreMedia] knows to build one back.
-     * A page whose media has never been loaded -- one still behind its blur overlay -- has no
-     * player to release and must not get one on the way back either.
-     */
-    private var playerReleased = false
+    /** Set only after the blur overlay has allowed the source to be loaded. */
+    private var mediaLoaded = false
 
     private var isGifMp4 = false
     private var player: ExoPlayer? = null
@@ -207,6 +203,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     }
 
     override fun loadMedia() {
+        mediaLoaded = true
         showPoster()
         val sessionVolume = host.playbackVolume
         val perPostMute = !host.isTikTokWithSound && post.isNSFW &&
@@ -231,6 +228,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
      */
     private fun buildPlayer() {
         val binding = _binding ?: return
+        if (player != null || !mediaLoaded || !revealed || !host.canRetainVideoPlayer(position)) return
         playbackFailed = false
         binding.playbackErrorLinearLayoutShadowboxMediaVideo.visibility = View.GONE
         downgradeFailed = false
@@ -271,6 +269,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
 
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (this@ShadowboxVideoPageFragment.player !== player) return
                 val binding = _binding ?: return
                 binding.progressBarShadowboxMediaVideo.visibility =
                     if (playbackState == Player.STATE_BUFFERING) View.VISIBLE else View.INVISIBLE
@@ -281,6 +280,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             }
 
             override fun onTracksChanged(tracks: Tracks) {
+                if (this@ShadowboxVideoPageFragment.player !== player) return
                 applyDefaultResolution(tracks)
                 applyStereoAudioTrack(tracks)
                 val hasAudio = hasSupportedTrack(tracks, C.TRACK_TYPE_AUDIO)
@@ -301,11 +301,13 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             }
 
             override fun onRenderedFirstFrame() {
+                if (this@ShadowboxVideoPageFragment.player !== player) return
                 firstFrameRendered = true
                 hidePosterIfPlaying()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (this@ShadowboxVideoPageFragment.player !== player) return
                 hidePosterIfPlaying()
                 if (isPlaying) {
                     host.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -316,6 +318,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                if (this@ShadowboxVideoPageFragment.player !== player) return
                 // The code and the file, since this is the only record of a failure that the
                 // device, not the post, decided: a decoder that would not open, say.
                 Log.e(
@@ -507,17 +510,14 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             return
         }
         releasePlayer()
-        playerReleased = true
         // The poster goes back up over the surface: the player built on the way back has nothing
         // to show until its first frame, and the page was designed never to sit on black.
         showPoster()
     }
 
     override fun restoreMedia() {
-        if (!playerReleased) {
-            return
-        }
-        playerReleased = false
+        // Includes pages whose first load was outside the retained window. Build is idempotent
+        // and checks foreground, current visible-order neighbors and reveal state itself.
         buildPlayer()
     }
 
@@ -694,7 +694,8 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     /** Only the visible page plays. A manual pause remains until the user presses play. */
     private fun applyPlayback() {
         val player = player ?: return
-        player.playWhenReady = pageActive && !userPaused && soundOnlyPlaybackApproved
+        player.playWhenReady = pageActive && host.currentPage.value == position &&
+            host.canRetainVideoPlayer(position) && !userPaused && soundOnlyPlaybackApproved
         updatePlayButton()
         updateControls()
     }
@@ -850,6 +851,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
             }
         }
         applyMute()
+        restoreMedia()
         applyPlayback()
     }
 
@@ -910,6 +912,7 @@ class ShadowboxVideoPageFragment : ShadowboxPageFragment() {
     }
 
     override fun onDestroyView() {
+        mediaLoaded = false
         releasePlayer()
         resetVideoSurfaceTransform()
         _binding?.videoGestureOverlayShadowboxMediaVideo?.let { gestureView ->

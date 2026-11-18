@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.ImageView
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import com.github.piasy.biv.loader.ImageLoader
@@ -23,6 +24,18 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
         get() = _binding!!
     private lateinit var url: String
     private var isGif = false
+    private var pageSelected = false
+    private var mediaForeground = false
+    private var originalRequested = false
+    private var fullImageReady = false
+    private var imageRequestGeneration = 0
+    // The GIF factory loads its drawable asynchronously after BigImageView's file callback.
+    // Recheck at draw time so a late decode cannot start an animation on a neighboring page.
+    private val animationGate = ViewTreeObserver.OnPreDrawListener {
+        val drawable = ((_binding?.imageViewShadowboxMediaImage?.mainView as? ImageView)?.drawable as? Animatable)
+        if (isGif && drawable != null && !canLoadOriginal()) drawable.stop()
+        true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,9 +46,39 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
     override fun onCreateMediaView(inflater: LayoutInflater, container: ViewGroup) {
         val binding = ShadowboxMediaImageBinding.inflate(inflater, container, true)
         _binding = binding
+        if (isGif) binding.root.viewTreeObserver.addOnPreDrawListener(animationGate)
         binding.imageViewShadowboxMediaImage.setImageViewFactory(
             GlideGifImageViewFactory(SaveMemoryCenterInisdeDownsampleStrategy(maxResolution))
         )
+        binding.imageViewShadowboxMediaImage.setOnClickListener { toggleChrome() }
+        binding.loadImageErrorLinearLayoutShadowboxMediaImage.setOnClickListener {
+            binding.progressBarShadowboxMediaImage.visibility = View.VISIBLE
+            binding.loadImageErrorLinearLayoutShadowboxMediaImage.visibility = View.GONE
+            loadMedia()
+        }
+        binding.progressBarShadowboxMediaImage.visibility = View.INVISIBLE
+    }
+
+    override fun loadMedia() {
+        if (!fullImageReady) showPreview()
+        loadOriginalIfSelected()
+    }
+
+    // Selecting this standalone viewer is an explicit request to view the original, including
+    // a raw GIF. Autoplay/Data Saving gates apply to speculative loads and gallery animation.
+    private fun canLoadOriginal(): Boolean = pageSelected && mediaForeground && revealed
+
+    private fun loadOriginalIfSelected() {
+        val binding = _binding ?: return
+        if (!canLoadOriginal()) return
+        if (fullImageReady) {
+            ((binding.imageViewShadowboxMediaImage.mainView as? ImageView)?.drawable as? Animatable)?.start()
+            return
+        }
+        if (originalRequested) return
+        originalRequested = true
+        binding.loadImageErrorLinearLayoutShadowboxMediaImage.visibility = View.GONE
+        val generation = ++imageRequestGeneration
         binding.imageViewShadowboxMediaImage.setImageLoaderCallback(object : ImageLoader.Callback {
             override fun onCacheHit(imageType: Int, image: File) {}
 
@@ -48,7 +91,9 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
             override fun onFinish() {}
 
             override fun onSuccess(image: File) {
+                if (generation != imageRequestGeneration) return
                 val binding = _binding ?: return
+                fullImageReady = true
                 binding.progressBarShadowboxMediaImage.visibility = View.GONE
                 val view = binding.imageViewShadowboxMediaImage.ssiv
                 if (view == null) {
@@ -60,6 +105,7 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
                 }
                 view.setOnImageEventListener(object : SubsamplingScaleImageView.DefaultOnImageEventListener() {
                     override fun onImageLoaded() {
+                        if (generation != imageRequestGeneration) return
                         ImageZoomConfiguration.configure(view)
                         hidePreview()
                     }
@@ -67,6 +113,8 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
             }
 
             override fun onFail(error: Exception) {
+                if (generation != imageRequestGeneration) return
+                originalRequested = false
                 val binding = _binding ?: return
                 binding.progressBarShadowboxMediaImage.visibility = View.GONE
                 // Black behind the error, not the preview: the message is white text with no
@@ -75,19 +123,55 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
                 binding.loadImageErrorLinearLayoutShadowboxMediaImage.visibility = View.VISIBLE
             }
         })
-        binding.imageViewShadowboxMediaImage.setOnClickListener { toggleChrome() }
-        binding.loadImageErrorLinearLayoutShadowboxMediaImage.setOnClickListener {
-            binding.progressBarShadowboxMediaImage.visibility = View.VISIBLE
-            binding.loadImageErrorLinearLayoutShadowboxMediaImage.visibility = View.GONE
-            loadMedia()
-        }
-        binding.progressBarShadowboxMediaImage.visibility = View.INVISIBLE
-    }
-
-    override fun loadMedia() {
-        showPreview()
         binding.progressBarShadowboxMediaImage.visibility = View.VISIBLE
         binding.imageViewShadowboxMediaImage.showImage(Uri.parse(url))
+    }
+
+    private fun stopPendingOriginal() {
+        val binding = _binding ?: return
+        ((binding.imageViewShadowboxMediaImage.mainView as? ImageView)?.drawable as? Animatable)?.stop()
+        if (originalRequested && !fullImageReady) {
+            // Adjacent posts may show their bounded poster, but must not compete with the
+            // selected post for the original file. Ready images retain their tiles and zoom.
+            ++imageRequestGeneration
+            originalRequested = false
+            binding.imageViewShadowboxMediaImage.cancel()
+            binding.progressBarShadowboxMediaImage.visibility = View.INVISIBLE
+        }
+    }
+
+    override fun onPageActive() {
+        pageSelected = true
+        loadOriginalIfSelected()
+    }
+
+    override fun onPageInactive() {
+        pausePlayback()
+    }
+
+    override fun pausePlayback() {
+        pageSelected = false
+        stopPendingOriginal()
+    }
+
+    override fun releaseMedia() {
+        mediaForeground = false
+        stopPendingOriginal()
+    }
+
+    override fun restoreMedia() {
+        mediaForeground = true
+        loadOriginalIfSelected()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        restoreMedia()
+    }
+
+    override fun onPause() {
+        releaseMedia()
+        super.onPause()
     }
 
     /**
@@ -99,7 +183,7 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
     private fun showPreview() {
         val binding = _binding ?: return
         val preview = ShadowboxPreviews.bestPreview(post, maxResolution, dataSavingMode)
-        if (preview == null) {
+        if (preview == null || preview.previewUrl == url) {
             binding.previewImageViewShadowboxMediaImage.visibility = View.GONE
             return
         }
@@ -125,7 +209,14 @@ class ShadowboxImagePageFragment : ShadowboxPageFragment() {
     }
 
     override fun onDestroyView() {
+        ++imageRequestGeneration
+        originalRequested = false
+        fullImageReady = false
+        mediaForeground = false
         _binding?.let { binding ->
+            if (isGif && binding.root.viewTreeObserver.isAlive) {
+                binding.root.viewTreeObserver.removeOnPreDrawListener(animationGate)
+            }
             val imageView = binding.imageViewShadowboxMediaImage
             imageView.setImageLoaderCallback(null)
             imageView.cancel()

@@ -34,8 +34,12 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentStatePagerAdapter;
 import androidx.lifecycle.ViewModelProvider;
 import app.futured.hauler.DragDirection;
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.Priority;
+import com.bumptech.glide.request.target.Target;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -91,8 +95,9 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
     @Inject
     ExoCreator gifCreator;
     @Nullable private NextClipPreloader gifPreloader;
+    @Nullable private Target<File> previewPreload;
     private int readyGalleryPosition = -1;
-    private final Runnable preloadReadyGif = () -> preloadNextGalleryGif(readyGalleryPosition);
+    private final Runnable preloadAdjacentMedia = () -> preloadNextGalleryMedia(readyGalleryPosition);
 
     @Nullable
     public Typeface typeface;
@@ -243,40 +248,50 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
         setupViewPager(savedInstanceState);
     }
 
-    public void stopGifPreload() {
-        if (binding != null) binding.viewPagerViewRedditGalleryActivity.removeCallbacks(preloadReadyGif);
+    public void stopGalleryPreload() {
+        if (binding != null) binding.viewPagerViewRedditGalleryActivity.removeCallbacks(preloadAdjacentMedia);
         if (gifPreloader != null) gifPreloader.stop();
+        if (previewPreload != null) {
+            Glide.with(this).clear(previewPreload);
+            previewPreload = null;
+        }
     }
 
-    /** Warm only the adjacent animation, after the visible page has its media. */
+    /** Warm only the next gallery item, after the visible page has its media. */
     public void onGalleryMediaReady(int position) {
         if (position != getCurrentPagePosition()) return;
         readyGalleryPosition = position;
-        binding.viewPagerViewRedditGalleryActivity.removeCallbacks(preloadReadyGif);
+        binding.viewPagerViewRedditGalleryActivity.removeCallbacks(preloadAdjacentMedia);
         // A cached image may report ready inside Fragment.onResume, before its host is RESUMED.
-        binding.viewPagerViewRedditGalleryActivity.post(preloadReadyGif);
+        binding.viewPagerViewRedditGalleryActivity.post(preloadAdjacentMedia);
     }
 
-    private void preloadNextGalleryGif(int position) {
+    private void preloadNextGalleryMedia(int position) {
         if (position < 0 || position != getCurrentPagePosition() || position + 1 >= gallery.size()
                 || !getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return;
         String saving = sharedPreferences.getString(SharedPreferencesUtils.DATA_SAVING_MODE,
                 SharedPreferencesUtils.DATA_SAVING_MODE_OFF);
-        if (!sharedPreferences.getBoolean(SharedPreferencesUtils.GIF_AUTOPLAY, true)
-                || SharedPreferencesUtils.DATA_SAVING_MODE_ALWAYS.equals(saving)
+        if (SharedPreferencesUtils.DATA_SAVING_MODE_ALWAYS.equals(saving)
                 || (SharedPreferencesUtils.DATA_SAVING_MODE_ONLY_ON_CELLULAR_DATA.equals(saving)
                 && Utils.getConnectedNetwork(this) != Utils.NETWORK_TYPE_WIFI)
                 || post.isSpoiler()
                 || (post.isNSFW() && !sharedPreferences.getBoolean(SharedPreferencesUtils.AUTOPLAY_NSFW_VIDEOS, true))) return;
         Post.Gallery next = gallery.get(position + 1);
-        if (next.mediaType != Post.Gallery.TYPE_GIF || android.text.TextUtils.isEmpty(next.mp4Variant)) return;
-        if (gifPreloader == null) gifPreloader = gifCreator.createPreloader();
-        if (gifPreloader != null) gifPreloader.preload(Uri.parse(next.mp4Variant), 0, false);
+        if (next.mediaType == Post.Gallery.TYPE_GIF && !android.text.TextUtils.isEmpty(next.mp4Variant)
+                && sharedPreferences.getBoolean(SharedPreferencesUtils.GIF_AUTOPLAY, true)) {
+            if (gifPreloader == null) gifPreloader = gifCreator.createPreloader();
+            if (gifPreloader != null) gifPreloader.preload(Uri.parse(next.mp4Variant), 0, false);
+        } else if (next.mediaType == Post.Gallery.TYPE_IMAGE && previewPreload == null) {
+            String preview = next.feedPreviewUrl;
+            if (!android.text.TextUtils.isEmpty(preview) && !preview.equals(next.url) && !preview.equals(next.fallbackUrl)) {
+                previewPreload = Glide.with(this).downloadOnly().load(preview).priority(Priority.LOW).preload();
+            }
+        }
     }
 
     @Override
     protected void onPause() {
-        stopGifPreload();
+        stopGalleryPreload();
         super.onPause();
     }
 
@@ -289,7 +304,7 @@ public class ViewRedditGalleryActivity extends AppCompatActivity
                 new androidx.viewpager.widget.ViewPager.SimpleOnPageChangeListener() {
                     @Override
                     public void onPageSelected(int position) {
-                        stopGifPreload();
+                        stopGalleryPreload();
                         binding.galleryPageIndicatorViewRedditGalleryActivity.setCurrentPage(position);
                     }
                 }

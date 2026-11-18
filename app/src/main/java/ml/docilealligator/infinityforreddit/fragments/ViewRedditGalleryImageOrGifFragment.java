@@ -402,7 +402,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
                     }, () -> {
                         binding.progressBarViewRedditGalleryImageOrGifFragment.setVisibility(View.GONE);
                         activity.onGalleryMediaReady(requireArguments().getInt(EXTRA_INDEX));
-                    }, activity::stopGifPreload);
+                    }, activity::stopGalleryPreload);
             if (gifPlayer != null) return;
             mp4Failed = true;
             releaseGifPlayer();
@@ -733,7 +733,7 @@ public class ViewRedditGalleryImageOrGifFragment extends Fragment {
     @Override
     public void onPause() {
         releaseGifPlayer();
-        activity.stopGifPreload();
+        activity.stopGalleryPreload();
         SubsamplingScaleImageView view = binding.imageViewViewRedditGalleryImageOrGifFragment.getSSIV();
         if (view == null || !view.hasImage()) {
             binding.imageViewViewRedditGalleryImageOrGifFragment.cancel();

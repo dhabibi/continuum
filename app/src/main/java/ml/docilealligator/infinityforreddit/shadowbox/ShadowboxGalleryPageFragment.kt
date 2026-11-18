@@ -2,6 +2,7 @@ package ml.docilealligator.infinityforreddit.shadowbox
 
 import android.graphics.drawable.Animatable
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
@@ -11,6 +12,7 @@ import androidx.core.view.doOnLayout
 import androidx.core.view.updatePadding
 import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
+import androidx.media3.common.util.UnstableApi
 import com.bumptech.glide.Priority
 import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.load.DataSource
@@ -23,12 +25,16 @@ import ml.docilealligator.infinityforreddit.customviews.LinearLayoutManagerBugFi
 import ml.docilealligator.infinityforreddit.databinding.ItemShadowboxGalleryBinding
 import ml.docilealligator.infinityforreddit.databinding.ShadowboxMediaGalleryBinding
 import ml.docilealligator.infinityforreddit.post.Post
+import ml.docilealligator.infinityforreddit.utils.SharedPreferencesUtils
+import ml.docilealligator.infinityforreddit.videoautoplay.InlineGifVideoPlayer
+import ml.docilealligator.infinityforreddit.videoautoplay.NextClipPreloader
 import kotlin.math.abs
 
 /**
  * A Reddit gallery: horizontal pages within Shadowbox's vertical post pager. The fullscreen
  * button opens the visible item in the gallery viewer; captions stay clear of the info panel.
  */
+@OptIn(UnstableApi::class)
 class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
     private var _binding: ShadowboxMediaGalleryBinding? = null
@@ -55,6 +61,11 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
     private var currentGalleryPage = 0
     private var galleryPagePositionInitialized = false
     private var galleryPageActive = false
+    private var mediaForeground = false
+    private var galleryScrolling = false
+    private var gifPreloader: NextClipPreloader? = null
+    private val boundHolders = mutableSetOf<GalleryViewHolder>()
+    private val pendingTileRefreshes = mutableSetOf<Int>()
     private var adjacentPreviewUrl: String? = null
     private var adjacentPreviewTarget: Target<Drawable>? = null
 
@@ -72,8 +83,12 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
             }
 
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                galleryScrolling = newState != RecyclerView.SCROLL_STATE_IDLE
+                if (galleryScrolling) {
+                    stopGalleryPlayback()
+                } else {
                     updatePageIndicator(recyclerView, pagerSnapHelper, updateAdjacentPreview = true)
+                    refreshTile(currentGalleryPage)
                 }
             }
         })
@@ -91,7 +106,8 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         val metrics = resources.displayMetrics
         tileWidth = metrics.widthPixels
         tileHeight = ShadowboxPreviews.galleryTileHeight(tileRatio, tileWidth, metrics.heightPixels)
-        autoplayGif = shouldAutoplay()
+        autoplayGif = sharedPreferences.getBoolean(SharedPreferencesUtils.GIF_AUTOPLAY, true) &&
+            !dataSavingMode
         galleryItems = post.gallery ?: emptyList()
         currentGalleryPage = 0
         galleryPagePositionInitialized = false
@@ -139,6 +155,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
                 preloadNextGalleryPreview(page)
             } else if (updateAdjacentPreview && page != currentGalleryPage) {
                 val oldPage = currentGalleryPage
+                stopGalleryPlayback()
                 currentGalleryPage = page
                 if (needsCurrentTileRefresh(oldPage)) refreshTile(oldPage)
                 if (needsCurrentTileRefresh(page)) refreshTile(page)
@@ -150,21 +167,30 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
     private fun needsCurrentTileRefresh(page: Int): Boolean {
         val item = galleryItems.getOrNull(page) ?: return false
         return when (item.mediaType) {
-            Post.Gallery.TYPE_IMAGE -> item.feedPreviewUrl.isNullOrBlank()
-            Post.Gallery.TYPE_GIF -> autoplayGif || item.feedPreviewUrl.isNullOrBlank()
+            Post.Gallery.TYPE_IMAGE -> item.feedPreviewUrl.isNullOrBlank() || item.feedPreviewUrl == item.url
+            Post.Gallery.TYPE_GIF -> true
             else -> false
         }
     }
 
     private fun refreshTile(page: Int) {
         val recyclerView = _binding?.recyclerViewShadowboxMediaGallery ?: return
+        val currentAdapter = adapter ?: return
+        if (!pendingTileRefreshes.add(page)) return
         recyclerView.post {
-            val currentAdapter = adapter ?: return@post
+            pendingTileRefreshes.remove(page)
+            if (adapter !== currentAdapter) return@post
             val holder = recyclerView.findViewHolderForAdapterPosition(page) as? GalleryViewHolder
             if (page in galleryItems.indices &&
                 (needsCurrentTileRefresh(page) || holder?.hasDrawable() != true)
             ) {
-                currentAdapter.notifyItemChanged(page)
+                if (holder != null) {
+                    // Refresh the attached holder directly. A change animation can allocate a
+                    // second holder/player while retaining the old one until its fade ends.
+                    holder.bind(galleryItems[page], page, if (page == currentGalleryPage) Priority.IMMEDIATE else Priority.NORMAL)
+                } else {
+                    currentAdapter.notifyItemChanged(page)
+                }
             }
         }
     }
@@ -172,12 +198,12 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
     private fun preloadNextGalleryPreview(page: Int) {
         // Adjacent post pages may be built for vertical swipe readiness, but only the gallery in
         // front should start an extra network request. Data Saving still loads a tile on demand.
-        if (!galleryPageActive || !galleryPagePositionInitialized || dataSavingMode) {
+        if (!galleryPageActive || !mediaForeground || !revealed || !galleryPagePositionInitialized || dataSavingMode) {
             clearAdjacentPreviewPreload()
             return
         }
         val nextPreview = galleryItems.getOrNull(page + 1)
-            ?.takeIf { it.mediaType == Post.Gallery.TYPE_IMAGE }
+            ?.takeIf { it.mediaType == Post.Gallery.TYPE_IMAGE && it.feedPreviewUrl != it.url }
             ?.feedPreviewUrl
             ?.takeIf { it.isNotBlank() }
         if (nextPreview == adjacentPreviewUrl) return
@@ -206,28 +232,66 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
     }
 
     override fun onPageInactive() {
-        galleryPageActive = false
-        if (galleryPagePositionInitialized && needsCurrentTileRefresh(currentGalleryPage)) {
-            refreshTile(currentGalleryPage)
-        }
-        clearAdjacentPreviewPreload()
+        pausePlayback()
         super.onPageInactive()
     }
 
-    override fun onPause() {
+    private fun canAnimateTile(page: Int): Boolean = autoplayGif && revealed && galleryPageActive &&
+        mediaForeground && !galleryScrolling && galleryPagePositionInitialized && page == currentGalleryPage
+
+    private fun stopGalleryPlayback() {
+        gifPreloader?.stop()
+        boundHolders.toList().forEach { it.stopPlayback() }
+    }
+
+    private fun preloadNextGif() {
+        if (!canAnimateTile(currentGalleryPage)) return
+        val next = galleryItems.getOrNull(currentGalleryPage + 1) ?: return
+        if (next.mediaType != Post.Gallery.TYPE_GIF || next.mp4Variant.isNullOrBlank()) return
+        if (gifPreloader == null) gifPreloader = exoCreator.createPreloader()
+        gifPreloader?.preload(Uri.parse(next.mp4Variant), 0, false)
+    }
+
+    override fun pausePlayback() {
+        galleryPageActive = false
+        stopGalleryPlayback()
         clearAdjacentPreviewPreload()
+    }
+
+    override fun releaseMedia() {
+        mediaForeground = false
+        stopGalleryPlayback()
+        clearAdjacentPreviewPreload()
+    }
+
+    override fun restoreMedia() {
+        mediaForeground = true
+        if (galleryPageActive && revealed) {
+            refreshTile(currentGalleryPage)
+            preloadNextGalleryPreview(currentGalleryPage)
+        }
+    }
+
+    override fun onPause() {
+        releaseMedia()
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        if (galleryPageActive) preloadNextGalleryPreview(currentGalleryPage)
+        restoreMedia()
     }
 
     override fun onDestroyView() {
+        releaseMedia()
+        boundHolders.toList().forEach { it.prepareForRecycling() }
+        boundHolders.clear()
+        pendingTileRefreshes.clear()
+        _binding?.recyclerViewShadowboxMediaGallery?.adapter = null
         adapter = null
-        clearAdjacentPreviewPreload()
+        gifPreloader = null
         galleryItems = emptyList()
+        galleryPagePositionInitialized = false
         _binding = null
         super.onDestroyView()
     }
@@ -253,14 +317,33 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
         override fun getItemCount(): Int = items.size
 
+        override fun onViewDetachedFromWindow(holder: GalleryViewHolder) {
+            holder.stopPlayback()
+            super.onViewDetachedFromWindow(holder)
+        }
+
+        override fun onViewAttachedToWindow(holder: GalleryViewHolder) {
+            super.onViewAttachedToWindow(holder)
+            val page = holder.bindingAdapterPosition
+            if (canAnimateTile(page) && page in items.indices) {
+                holder.bind(items[page], page, Priority.IMMEDIATE)
+            }
+        }
+
         override fun onViewRecycled(holder: GalleryViewHolder) {
-            glide.clear(holder.binding.imageViewItemShadowboxGallery)
             holder.prepareForRecycling()
+            boundHolders.remove(holder)
+            glide.clear(holder.binding.imageViewItemShadowboxGallery)
         }
     }
 
     private inner class GalleryViewHolder(val binding: ItemShadowboxGalleryBinding) : RecyclerView.ViewHolder(binding.root) {
         private var boundItemUrl: String? = null
+        private var boundItem: Post.Gallery? = null
+        private var boundPage = RecyclerView.NO_POSITION
+        private var gifPlayer: InlineGifVideoPlayer? = null
+        private var failedMp4: String? = null
+        private var originalGifRequested = false
         private var zoomSourceRequestedFor: String? = null
 
         init {
@@ -268,6 +351,20 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         }
 
         fun bind(item: Post.Gallery, position: Int, priority: Priority) {
+            val sameTile = boundItem === item && boundPage == position
+            if (sameTile && canAnimateTile(position) &&
+                (gifPlayer != null || originalGifRequested)
+            ) {
+                // Page activation, restore and attachment may all refresh the same tile.
+                // Keep its existing decoder/request and zoom until it actually stops or changes.
+                bindCaption(item)
+                return
+            }
+            stopPlayback()
+            if (boundItemUrl != item.url) failedMp4 = null
+            boundHolders.add(this)
+            boundItem = item
+            boundPage = position
             boundItemUrl = item.url
             zoomSourceRequestedFor = null
             binding.imageViewItemShadowboxGallery.resetZoom()
@@ -282,23 +379,48 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
             // The resolution-bounded still Reddit publishes for the item, which is what a tile
             // shows for every type: a fraction of the source, and what the feed's own inline
             // gallery loads.
-            val still = item.feedPreviewUrl
+            val still = item.feedPreviewUrl?.takeUnless { it.isBlank() || it == item.url }
             // What the tile ends up displaying, and the cheaper pictures it shows on the way
             // there, in the order it prefers them.
-            val isCurrentTile = galleryPageActive && galleryPagePositionInitialized &&
-                position == currentGalleryPage
+            val isCurrentTile = galleryPageActive && mediaForeground && revealed &&
+                galleryPagePositionInitialized && position == currentGalleryPage
             val main: String?
             val standIns: MutableList<String> = mutableListOf()
             when (item.mediaType) {
                 Post.Gallery.TYPE_GIF -> {
                     // The tile animates only where the app's autoplay rule allows it, the way the
                     // feed's inline gallery does; otherwise it shows the still, and the source --
-                    // often tens of megabytes -- is never fetched at all. A gif with no still is
-                    // the one exception, since there is nothing else it could show.
-                    if (isCurrentTile && (autoplayGif || still == null)) {
-                        // Over the still rather than instead of it: the tile used to stay empty
-                        // for the whole of that download.
+                    // often tens of megabytes -- is never fetched with autoplay disabled.
+                    val mp4 = item.mp4Variant?.takeIf { it.isNotBlank() && it != failedMp4 }
+                    if (canAnimateTile(position) && mp4 != null) {
+                        // The existing player shares the app's proxy/cache and follows the
+                        // ZoomableGifImageView matrix, keeping poster, video and pinch aligned.
+                        // Becoming current should keep an in-flight poster request alive.
+                        if (still == null) clearTileContent()
+                        else if (!sameTile) loadTile(still, emptyList(), priority)
+                        gifPlayer = InlineGifVideoPlayer.create(
+                            binding.imageViewItemShadowboxGallery, Uri.parse(mp4), exoCreator,
+                            { failed ->
+                                if (gifPlayer === failed && boundItemUrl == item.url) {
+                                    failedMp4 = mp4
+                                    gifPlayer = null
+                                    failed.release()
+                                    gifPreloader?.stop()
+                                    if (canAnimateTile(position)) bind(item, position, Priority.IMMEDIATE)
+                                }
+                            },
+                            { if (canAnimateTile(position)) preloadNextGif() },
+                            { gifPreloader?.stop() },
+                        )
+                        if (gifPlayer != null) {
+                            bindCaption(item)
+                            return
+                        }
+                        failedMp4 = mp4
+                    }
+                    if (canAnimateTile(position)) {
                         main = item.url
+                        originalGifRequested = true
                         still?.let { standIns.add(it) }
                     } else {
                         main = still
@@ -328,6 +450,10 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
             } else {
                 loadTile(main, standIns.filter { it != main }, priority)
             }
+            bindCaption(item)
+        }
+
+        private fun bindCaption(item: Post.Gallery) {
             if (TextUtils.isEmpty(item.caption)) {
                 binding.captionTextViewItemShadowboxGallery.visibility = View.GONE
             } else {
@@ -341,7 +467,22 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
 
         fun hasDrawable(): Boolean = binding.imageViewItemShadowboxGallery.drawable != null
 
+        fun stopPlayback() {
+            gifPlayer?.release()
+            gifPlayer = null
+            (binding.imageViewItemShadowboxGallery.drawable as? Animatable)?.stop()
+            if (originalGifRequested) {
+                originalGifRequested = false
+                glide.clear(binding.imageViewItemShadowboxGallery)
+                val still = boundItem?.feedPreviewUrl?.takeUnless { it.isBlank() || it == boundItemUrl }
+                if (still != null) loadTile(still, emptyList(), Priority.NORMAL)
+            }
+        }
+
         fun prepareForRecycling() {
+            stopPlayback()
+            boundItem = null
+            boundPage = RecyclerView.NO_POSITION
             boundItemUrl = null
             zoomSourceRequestedFor = null
             binding.imageViewItemShadowboxGallery.setOnZoomGestureStartedListener(null)
@@ -349,6 +490,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
         }
 
         private fun loadFullResolutionImageForZoom(item: Post.Gallery, position: Int) {
+            if (!galleryPageActive || position != currentGalleryPage || !mediaForeground) return
             if (zoomSourceRequestedFor == item.url) return
             zoomSourceRequestedFor = item.url
 
@@ -360,7 +502,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
                 .dontAnimate()
             // Never use a post-level preview as a stand-in here: the parser can put the full
             // gallery source in that field when Reddit supplied no bounded preview.
-            item.feedPreviewUrl?.takeUnless { it == item.url }?.let { previewUrl ->
+            item.feedPreviewUrl?.takeUnless { it.isBlank() || it == item.url }?.let { previewUrl ->
                 fullResolutionRequest.thumbnail(tileRequest(previewUrl, Priority.IMMEDIATE))
             }
 
@@ -435,7 +577,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
             override fun onLoadFailed(
                 e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean
             ): Boolean {
-                if (binding.imageViewItemShadowboxGallery.drawable == null) {
+                if (gifPlayer == null && binding.imageViewItemShadowboxGallery.drawable == null) {
                     markTileFailed()
                 }
                 return false
@@ -446,7 +588,7 @@ class ShadowboxGalleryPageFragment : ShadowboxPageFragment() {
                 dataSource: DataSource, isFirstResource: Boolean
             ): Boolean {
                 binding.errorImageViewItemShadowboxGallery.visibility = View.GONE
-                if (!autoplayGif && resource is Animatable) {
+                if (!canAnimateTile(boundPage) && resource is Animatable) {
                     // The one gif that is loaded with autoplay off: the item had no still. Glide
                     // starts it after this callback returns, so stop it on the next loop, on the
                     // frame it reached, exactly as the feed does.

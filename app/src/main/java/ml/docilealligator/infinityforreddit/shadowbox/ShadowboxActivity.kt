@@ -123,7 +123,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         set(value) { soundOnlyState.nextPostIndex = value }
     private var soundOnlyProbe: ShadowboxSoundOnlyProbe? = null
     private var soundOnlyProbeActive = false
-    private var soundOnlyForeground = false
+    private var viewerInForeground = false
     val soundOnlyProbeStatus = MutableLiveData(SoundOnlyProbeStatus.IDLE)
     private var restorePostFullName: String? = null
 
@@ -322,13 +322,14 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
     private fun onPageShown(page: Int) {
         val adapter = this.adapter ?: return
         val postIndex = adapter.postIndexForPage(page)
+        stopPlaybackExcept(postIndex)
+        reconcileVideoPlayerWindow()
         currentPage.value = postIndex
         if (isTikTokWithSound) {
             continueSoundOnlyAdmission()
         } else if (adapter.pageCount - page <= PREFETCH_LEAD_PAGES) {
             fetchMorePosts()
         }
-        stopPlaybackExcept(postIndex)
         schedulePagerPageInstancePruning()
         val posts = viewModel.posts ?: return
         if (postIndex in posts.indices) {
@@ -377,6 +378,22 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
                 fragment.pausePlayback()
             }
         }
+    }
+
+    /** Source indices are not pager positions: sound-only admission can leave large gaps. */
+    internal fun canRetainVideoPlayer(postIndex: Int): Boolean {
+        if (!viewerInForeground || isFinishing || isDestroyed || postIndex < 0) return false
+        val pagerAdapter = adapter ?: return false
+        val page = binding.viewPager2ShadowboxActivity.currentItem
+        return ((page - 1).coerceAtLeast(0)..(page + 1).coerceAtMost(pagerAdapter.pageCount))
+            .any { pagerAdapter.postIndexForPage(it) == postIndex }
+    }
+
+    /** Release the old window before allocating the new one, even for retained fragments. */
+    private fun reconcileVideoPlayerWindow() {
+        val videos = supportFragmentManager.fragments.filterIsInstance<ShadowboxVideoPageFragment>()
+        videos.filterNot { canRetainVideoPlayer(it.position) }.forEach { it.releaseMedia() }
+        videos.filter { canRetainVideoPlayer(it.position) }.forEach { it.restoreMedia() }
     }
 
     /** Rebuilds the standalone feed request from the small source descriptor in the Intent. */
@@ -536,6 +553,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
         val oldPageCount = adapter.pageCount
         val wasOnEndPage = binding.viewPager2ShadowboxActivity.currentItem >= oldPageCount
         val added = adapter.appendPages()
+        reconcileVideoPlayerWindow()
         if (restoreSelectedPostIfAvailable(state, adapter)) return
         if (added == 0) {
             // Filters can consume any number of complete batches. Only the loader's exhaustion
@@ -659,7 +677,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
 
     /** Verify in source order until a short lead exists; a filtered source batch is not an end. */
     private fun continueSoundOnlyAdmission() {
-        if (!isTikTokWithSound || !soundOnlyForeground || isFinishing || isDestroyed ||
+        if (!isTikTokWithSound || !viewerInForeground || isFinishing || isDestroyed ||
             soundOnlyProbeActive || soundOnlyProbeStatus.value == SoundOnlyProbeStatus.FAILED
         ) return
         val pagerAdapter = adapter ?: return
@@ -700,7 +718,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
             val probe = soundOnlyProbe ?: ShadowboxSoundOnlyProbe(this, simpleCache, mediaClient)
                 .also { soundOnlyProbe = it }
             probe.check(urls) { outcome ->
-                if (generation != feedGeneration || !soundOnlyForeground || isFinishing || isDestroyed) return@check
+                if (generation != feedGeneration || !viewerInForeground || isFinishing || isDestroyed) return@check
                 when (outcome) {
                     ShadowboxSoundOnlyProbe.Result.AUDIBLE -> {
                         // Keep the admission slot occupied until the posted pager update commits.
@@ -725,13 +743,11 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
             return
         }
         val state = viewModel.loadMorePostsState.value ?: return
+        soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
         if (state.hasMore && state.status != LoadingMorePostsStatus.LOADING &&
             state.status != LoadingMorePostsStatus.FAILED
         ) {
-            soundOnlyProbeStatus.value = SoundOnlyProbeStatus.LOADING
             viewModel.loadNextFeedPage()
-        } else {
-            soundOnlyProbeStatus.value = SoundOnlyProbeStatus.IDLE
         }
     }
 
@@ -752,6 +768,7 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
                 val selectedPage = pager.currentItem
                 val selectedPostIndex = pagerAdapter.postIndexForPage(selectedPage)
                 val insertion = pagerAdapter.appendVerifiedPage(postIndex)
+                reconcileVideoPlayerWindow()
                 if (insertion != null) {
                     val restoring = viewModel.posts?.getOrNull(postIndex)?.fullName == restorePostFullName
                     if (restoring) restorePostFullName = null
@@ -878,9 +895,10 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
 
     override fun onResume() {
         super.onResume()
-        soundOnlyForeground = true
+        viewerInForeground = true
+        reconcileVideoPlayerWindow()
         for (fragment in supportFragmentManager.fragments) {
-            if (fragment is ShadowboxPageFragment) {
+            if (fragment is ShadowboxPageFragment && fragment !is ShadowboxVideoPageFragment) {
                 fragment.restoreMedia()
             }
         }
@@ -889,8 +907,8 @@ class ShadowboxActivity : BaseActivity(), SortTypeSelectionCallback {
     }
 
     override fun onPause() {
+        viewerInForeground = false
         super.onPause()
-        soundOnlyForeground = false
         soundOnlyProbe?.cancel()
         soundOnlyProbeActive = false
         if (soundOnlyProbeStatus.value == SoundOnlyProbeStatus.LOADING) {
